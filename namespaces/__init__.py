@@ -1,0 +1,1 @@
+# Namespaces app package

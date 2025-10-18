@@ -1,0 +1,8 @@
+#!/bin/bash
+set -e
+
+# Wait for database
+python /app/manage.py wait_for_db
+
+# Start flower
+exec celery -A config flower --port=5555

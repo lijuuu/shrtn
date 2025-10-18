@@ -1,0 +1,32 @@
+# Django Configuration
+USE_DOCKER=yes
+DEBUG=1
+SECRET_KEY=your-secret-key-here-change-in-production
+ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+
+# Database Configuration
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hirethon_template
+
+# ScyllaDB Configuration
+SCYLLA_HOSTS=127.0.0.1:9042
+SCYLLA_KEYSPACE=hirethon_keyspace
+SCYLLA_DATACENTER=datacenter1
+SCYLLA_REPLICATION_FACTOR=1
+
+# Sharding Strategy
+SCYLLA_PARTITION_KEY_STRATEGY=composite
+SCYLLA_PARTITION_KEY_FIELDS=namespace_id,shortcode
+SCYLLA_CLUSTERING_KEY_FIELDS=id,created_at
+SCYLLA_CONSISTENCY_LEVEL=LOCAL_ONE
+SCYLLA_COMPRESSION=true
+
+# Shard Configuration
+SCYLLA_VNODES=3
+SCYLLA_SHARD_COUNT=3
+
+# Redis Configuration
+REDIS_URL=redis://redis:6379/0
+
+# Celery Configuration
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
