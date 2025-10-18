@@ -59,12 +59,15 @@ def check_redis_connection() -> Dict[str, Any]:
 def check_scylla_connection() -> Dict[str, Any]:
     """Check ScyllaDB connectivity."""
     try:
-        # ScyllaDB connection parameters
-        use_docker = getattr(settings, 'USE_DOCKER', 'no').lower()
+        # ScyllaDB connection parameters - use same logic as service registry
+        import os
+        use_docker = os.getenv('USE_DOCKER', 'no').lower()
         if use_docker in ['yes', 'true', '1']:
             scylla_hosts = ['scylla']
         else:
-            scylla_hosts = ['127.0.0.1']
+            # Parse hosts from settings
+            scylla_hosts_setting = getattr(settings, 'SCYLLA_HOSTS', '127.0.0.1:9042')
+            scylla_hosts = [scylla_hosts_setting.split(':')[0]]  # Remove port, acsylla handles it
         
         async def _check_scylla():
             cluster = acsylla.create_cluster(scylla_hosts)
@@ -88,6 +91,37 @@ def check_scylla_connection() -> Dict[str, Any]:
         return {
             'status': 'unhealthy',
             'message': 'ScyllaDB connection failed: %s' % str(e)
+        }
+
+
+def check_s3_connection() -> Dict[str, Any]:
+    """Check S3 connectivity."""
+    try:
+        from core.dependencies.database import db_dependency
+        
+        s3_connection = db_dependency.get_s3()
+        if not s3_connection.is_connected():
+            s3_connection.connect()
+        
+        # Test by trying to get bucket info
+        client = s3_connection.get_client()
+        bucket_name = s3_connection.bucket_name
+        
+        # Try to access the specific bucket
+        client.head_bucket(Bucket=bucket_name)
+        
+        return {
+            'status': 'healthy',
+            'message': f'S3 connection successful (bucket: {bucket_name})',
+            'bucket_name': bucket_name,
+            'region': s3_connection.region_name
+        }
+                
+    except Exception as e:
+        logger.error("S3 health check failed: %s", e)
+        return {
+            'status': 'unhealthy',
+            'message': f'S3 connection failed: {str(e)}'
         }
 
 
@@ -143,6 +177,12 @@ def health_detailed(request) -> JsonResponse:
     if scylla_check['status'] == 'unhealthy':
         health_data['status'] = 'unhealthy'
     
+    # Check S3 connectivity
+    s3_check = check_s3_connection()
+    health_data['checks']['s3'] = s3_check
+    if s3_check['status'] == 'unhealthy':
+        health_data['status'] = 'unhealthy'
+    
     # Check Django settings
     try:
         health_data['checks']['settings'] = {
@@ -170,7 +210,7 @@ def health_detailed(request) -> JsonResponse:
 def health_ready(request) -> JsonResponse:
     """
     Readiness check endpoint for Kubernetes/container orchestration.
-    Checks all critical services (PostgreSQL, Redis, ScyllaDB).
+    Checks all critical services (PostgreSQL, Redis, ScyllaDB, S3).
     
     Returns:
         JsonResponse: Status 200 if ready, 503 if not ready
@@ -178,7 +218,8 @@ def health_ready(request) -> JsonResponse:
     checks = {
         'postgresql': check_postgresql_connection(),
         'redis': check_redis_connection(),
-        'scylla': check_scylla_connection()
+        'scylla': check_scylla_connection(),
+        's3': check_s3_connection()
     }
     
     # Check if all services are healthy

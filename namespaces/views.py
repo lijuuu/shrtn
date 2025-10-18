@@ -1,6 +1,7 @@
 """
 Namespace views layer for handling HTTP requests with serializers.
 """
+import uuid
 from typing import Dict, Any, Optional
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_http_methods
@@ -10,7 +11,8 @@ from django.views import View
 from django.core.exceptions import ValidationError
 import json
 
-from core.dependencies.services import service_dependency
+from core.dependencies.service_registry import service_registry
+from core.permissions.decorators import require_organization_permission
 from .serializers import (
     NamespaceSerializer,
     NamespaceCreateSerializer,
@@ -25,9 +27,10 @@ class NamespaceView:
     """
     
     def __init__(self):
-        self.service = service_dependency.get_namespace_service()
+        self.service = service_registry.get_namespace_service()
     
-    def list_namespaces(self, request: HttpRequest, org_id: int) -> JsonResponse:
+    @require_organization_permission('can_view')
+    def list_namespaces(self, request: HttpRequest, org_id: uuid.UUID) -> JsonResponse:
         """List organization namespaces."""
         try:
             filters = {'org_id': org_id}
@@ -52,7 +55,8 @@ class NamespaceView:
                 'payload': None
             }, status=500)
     
-    def create_namespace(self, request: HttpRequest, org_id: int) -> JsonResponse:
+    @require_organization_permission('can_admin')
+    def create_namespace(self, request: HttpRequest, org_id: uuid.UUID) -> JsonResponse:
         """Create new namespace."""
         try:
             data = json.loads(request.body)
@@ -133,7 +137,8 @@ class NamespaceView:
                 'payload': None
             }, status=500)
     
-    def update_namespace(self, request: HttpRequest, org_id: int, namespace: str) -> JsonResponse:
+    @require_organization_permission('can_admin')
+    def update_namespace(self, request: HttpRequest, org_id: uuid.UUID, namespace: str) -> JsonResponse:
         """Update namespace."""
         try:
             data = json.loads(request.body)
@@ -198,7 +203,8 @@ class NamespaceView:
                 'payload': None
             }, status=500)
     
-    def delete_namespace(self, request: HttpRequest, org_id: int, namespace: str) -> JsonResponse:
+    @require_organization_permission('can_admin')
+    def delete_namespace(self, request: HttpRequest, org_id: uuid.UUID, namespace: str) -> JsonResponse:
         """Delete namespace."""
         try:
             # Get namespace by name first

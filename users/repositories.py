@@ -1,6 +1,7 @@
 """
 User repository for PostgreSQL operations.
 """
+import uuid
 import logging
 from typing import List, Optional, Dict, Any
 from django.contrib.auth import get_user_model
@@ -34,7 +35,7 @@ class UserRepository(Repository):
             logger.error("Failed to create user: %s", e)
             raise
     
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    def get_by_id(self, user_id: uuid.UUID) -> Optional[User]:
         """Get user by ID."""
         try:
             return User.objects.get(id=user_id)
@@ -54,7 +55,7 @@ class UserRepository(Repository):
             logger.error("Failed to get user by email: %s", e)
             raise
     
-    def update(self, user_id: int, data: Dict[str, Any]) -> Optional[User]:
+    def update(self, user_id: uuid.UUID, data: Dict[str, Any]) -> Optional[User]:
         """Update user."""
         try:
             user = self.get_by_id(user_id)
@@ -72,7 +73,7 @@ class UserRepository(Repository):
             logger.error("Failed to update user: %s", e)
             raise
     
-    def delete(self, user_id: int) -> bool:
+    def delete(self, user_id: uuid.UUID) -> bool:
         """Delete user."""
         try:
             user = self.get_by_id(user_id)
@@ -110,7 +111,7 @@ class UserRepository(Repository):
             logger.error("Failed to search users: %s", e)
             raise
     
-    def get_user_stats(self, user_id: int) -> Optional[Dict[str, Any]]:
+    def get_user_stats(self, user_id: uuid.UUID) -> Optional[Dict[str, Any]]:
         """Get user statistics."""
         try:
             user = self.get_by_id(user_id)

@@ -117,8 +117,9 @@ class ScyllaDBConnection:
         """Execute multiple queries in a batch."""
         try:
             session = self.get_connection()
-            batch = acsylla.create_batch()
             
+            # For now, execute queries sequentially since acsylla doesn't have batch support
+            # In production, you might want to use a different approach or library
             for query, params in queries:
                 prepared = self._loop.run_until_complete(session.create_prepared(query))
                 statement = prepared.bind()
@@ -127,9 +128,8 @@ class ScyllaDBConnection:
                     for i, param in enumerate(params):
                         statement.bind(i, param)
                 
-                batch.add_statement(statement)
+                self._loop.run_until_complete(session.execute(statement))
             
-            self._loop.run_until_complete(session.execute_batch(batch))
             return len(queries)
         except Exception as e:
             logger.error("Error executing ScyllaDB batch: %s", e)

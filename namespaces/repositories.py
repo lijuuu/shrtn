@@ -1,6 +1,7 @@
 """
 Namespace repository for PostgreSQL operations.
 """
+import uuid
 import logging
 from typing import List, Optional, Dict, Any
 from core.database.base import Repository
@@ -31,7 +32,7 @@ class NamespaceRepository(Repository):
             logger.error("Failed to create namespace: %s", e)
             raise
     
-    def get_by_id(self, namespace_id: int) -> Optional[Namespace]:
+    def get_by_id(self, namespace_id: uuid.UUID) -> Optional[Namespace]:
         """Get namespace by ID."""
         try:
             return Namespace.objects.get(namespace_id=namespace_id)
@@ -51,7 +52,7 @@ class NamespaceRepository(Repository):
             logger.error("Failed to get namespace by name: %s", e)
             raise
     
-    def update(self, namespace_id: int, data: Dict[str, Any]) -> Optional[Namespace]:
+    def update(self, namespace_id: uuid.UUID, data: Dict[str, Any]) -> Optional[Namespace]:
         """Update namespace."""
         try:
             namespace = self.get_by_id(namespace_id)
@@ -69,7 +70,7 @@ class NamespaceRepository(Repository):
             logger.error("Failed to update namespace: %s", e)
             raise
     
-    def delete(self, namespace_id: int) -> bool:
+    def delete(self, namespace_id: uuid.UUID) -> bool:
         """Delete namespace."""
         try:
             namespace = self.get_by_id(namespace_id)
@@ -107,7 +108,7 @@ class NamespaceRepository(Repository):
             logger.error("Failed to check name availability: %s", e)
             raise
     
-    def get_by_organization(self, org_id: int) -> List[Namespace]:
+    def get_by_organization(self, org_id: uuid.UUID) -> List[Namespace]:
         """Get namespaces by organization."""
         try:
             return list(Namespace.objects.filter(organization_id=org_id))
@@ -115,7 +116,7 @@ class NamespaceRepository(Repository):
             logger.error("Failed to get namespaces by organization: %s", e)
             raise
     
-    def get_by_creator(self, user_id: int) -> List[Namespace]:
+    def get_by_creator(self, user_id: uuid.UUID) -> List[Namespace]:
         """Get namespaces created by user."""
         try:
             return list(Namespace.objects.filter(created_by_id=user_id))

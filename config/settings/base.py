@@ -92,7 +92,7 @@ LOCAL_APPS = [
     "organizations",
     "urls",
     "namespaces",
-    "core",
+    "core.apps.CoreConfig",  #use custom config for service initialization
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
@@ -206,6 +206,19 @@ EMAIL_BACKEND = env(
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-timeout
 EMAIL_TIMEOUT = 5
 
+# Email Configuration for Invites
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@shorturl.com")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Analytics & Geolocation Settings (in-memory, no external APIs)
+# Using simple IP range analysis - completely free and fast!
+
 # ADMIN
 # ------------------------------------------------------------------------------
 # Django Admin URL.
@@ -287,5 +300,23 @@ ADMIN_INDEX_TITLE = "Welcome to Hirethon Admin Portal"
 
 CLOUDFRONT_KEY_ID = env("CLOUDFRONT_KEY_ID", default="")
 CLOUDFRONT_DOMAIN = env("CLOUDFRONT_DOMAIN", default="")
+
+# AWS S3 Settings
+# ------------------------------------------------------------------------------
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
+AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="us-east-1")
+AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default="")
+AWS_DEFAULT_ACL = None
+AWS_S3_OBJECT_PARAMETERS = {
+    "CacheControl": "max-age=86400",
+}
+
+# Google OAuth Settings
+# ------------------------------------------------------------------------------
+GOOGLE_OAUTH2_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+GOOGLE_OAUTH2_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
+GOOGLE_REDIRECT_URI = env("GOOGLE_REDIRECT_URI", default="http://localhost:8000/auth/google/callback/")
 
 # CORS settings removed - only health endpoints

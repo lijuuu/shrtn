@@ -99,6 +99,88 @@ class UrlRepository(Repository):
             logger.error("Failed to get short URL: %s", e)
             raise
     
+    def get_by_namespace(self, namespace_id: int) -> List[ShortUrl]:
+        """Get all URLs in a namespace."""
+        try:
+            query = """
+            SELECT * FROM short_urls
+            WHERE namespace_id = ?
+            """
+            
+            results = self.scylla.execute_query(query, [namespace_id])
+            urls = []
+            
+            for row in results:
+                url = ShortUrl(
+                    id=row.id,
+                    namespace_id=row.namespace_id,
+                    shortcode=row.shortcode,
+                    original_url=row.original_url,
+                    created_by_user_id=row.created_by_user_id,
+                    expiry=row.expiry,
+                    click_count=row.click_count,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at,
+                    is_private=row.is_private,
+                    tags=list(row.tags) if row.tags else []
+                )
+                urls.append(url)
+            
+            return urls
+        except Exception as e:
+            logger.error("Failed to get URLs by namespace: %s", e)
+            raise
+    
+    def migrate_namespace_name(self, old_namespace_name: str, new_namespace_name: str) -> bool:
+        """Migrate all URLs from old namespace name to new namespace name."""
+        try:
+            # Get all URLs with the old namespace name
+            query = """
+            SELECT * FROM short_urls
+            WHERE namespace_name = ?
+            """
+            
+            results = self.scylla.execute_query(query, [old_namespace_name])
+            
+            if not results:
+                logger.info("No URLs found for namespace %s", old_namespace_name)
+                return True
+            
+            # For each URL, delete the old entry and create a new one with new namespace name
+            for row in results:
+                # Delete old entry
+                delete_query = """
+                DELETE FROM short_urls
+                WHERE namespace_name = ? AND shortcode = ?
+                """
+                self.scylla.execute_delete(delete_query, [old_namespace_name, row.shortcode])
+                
+                # Insert new entry with new namespace name
+                insert_query = """
+                INSERT INTO short_urls (
+                    namespace_name, shortcode, original_url, created_by_user_id,
+                    expiry, click_count, created_at, updated_at, is_private, tags
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                
+                self.scylla.execute_insert(insert_query, [
+                    new_namespace_name, row.shortcode, row.original_url, row.created_by_user_id,
+                    row.expiry, row.click_count, row.created_at, row.updated_at, 
+                    row.is_private, row.tags
+                ])
+                
+                logger.info("Migrated URL %s from namespace %s to %s", 
+                          row.shortcode, old_namespace_name, new_namespace_name)
+            
+            logger.info("Successfully migrated %d URLs from namespace %s to %s", 
+                       len(results), old_namespace_name, new_namespace_name)
+            return True
+            
+        except Exception as e:
+            logger.error("Failed to migrate namespace name from %s to %s: %s", 
+                        old_namespace_name, new_namespace_name, e)
+            raise
+    
     def update(self, id: tuple, data: Dict[str, Any]) -> Optional[ShortUrl]:
         """Update short URL."""
         try:
@@ -172,13 +254,29 @@ class UrlRepository(Repository):
     def increment_click_count(self, namespace_id: int, shortcode: str) -> bool:
         """Increment click count for a short URL."""
         try:
-            query = """
-            UPDATE short_urls
-            SET click_count = click_count + 1, updated_at = ?
+            # First, get the full record to get all primary key components
+            get_query = """
+            SELECT * FROM short_urls
             WHERE namespace_id = ? AND shortcode = ?
+            LIMIT 1
+            """
+            results = self.scylla.execute_query(get_query, [namespace_id, shortcode])
+            if not results:
+                return False
+            
+            row = results[0]
+            current_count = row.click_count
+            
+            # Then update with the new count, including all clustering keys
+            update_query = """
+            UPDATE short_urls
+            SET click_count = ?, updated_at = ?
+            WHERE namespace_id = ? AND shortcode = ? AND id = ? AND created_at = ?
             """
             now = datetime.now(timezone.utc)
-            self.scylla.execute_update(query, [now, namespace_id, shortcode])
+            self.scylla.execute_update(update_query, [
+                current_count + 1, now, namespace_id, shortcode, row.id, row.created_at
+            ])
             return True
         except Exception as e:
             logger.error("Failed to increment click count: %s", e)

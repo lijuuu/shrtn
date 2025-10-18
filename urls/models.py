@@ -13,10 +13,10 @@ class ShortUrl:
     """
     def __init__(
         self,
-        namespace_id: int,
+        namespace_id: uuid.UUID,
         shortcode: str,
         original_url: str,
-        created_by_user_id: int,
+        created_by_user_id: uuid.UUID,
         id: Optional[uuid.UUID] = None,
         expiry: Optional[datetime] = None,
         click_count: int = 0,

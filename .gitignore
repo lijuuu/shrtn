@@ -279,3 +279,4 @@ hirethon_template/media/
 .env
 .envs/*
 !.envs/.local/
+.envs/

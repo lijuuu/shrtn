@@ -30,20 +30,23 @@ CREATE INDEX IF NOT EXISTS idx_short_urls_expiry ON short_urls (expiry);
 -- Create an index for looking up by is_private
 CREATE INDEX IF NOT EXISTS idx_short_urls_is_private ON short_urls (is_private);
 
--- Create a table for tracking click analytics
-CREATE TABLE IF NOT EXISTS click_analytics (
-    shortcode TEXT,
+-- Create simple analytics table for URL tracking
+CREATE TABLE IF NOT EXISTS url_analytics (
     namespace_id INT,
-    click_date DATE,
-    click_timestamp TIMESTAMP,
-    user_agent TEXT,
-    ip_address TEXT,
-    referer TEXT,
+    shortcode TEXT,
+    lookup_date DATE,
+    lookup_timestamp TIMESTAMP,
     country TEXT,
-    city TEXT,
-    PRIMARY KEY ((shortcode, namespace_id), click_date, click_timestamp)
-) WITH CLUSTERING ORDER BY (click_date DESC, click_timestamp DESC)
+    ip_address TEXT,
+    user_agent TEXT,
+    referer TEXT,
+    PRIMARY KEY ((namespace_id, shortcode), lookup_date, lookup_timestamp)
+) WITH CLUSTERING ORDER BY (lookup_date DESC, lookup_timestamp DESC)
 AND compression = {'sstable_compression': 'LZ4Compressor'};
+
+-- Create indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_url_analytics_country ON url_analytics (country);
+CREATE INDEX IF NOT EXISTS idx_url_analytics_date ON url_analytics (lookup_date);
 
 -- Create a table for bulk upload tracking
 CREATE TABLE IF NOT EXISTS bulk_upload_mappings (

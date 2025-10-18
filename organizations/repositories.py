@@ -1,6 +1,7 @@
 """
 Organization repository for PostgreSQL operations.
 """
+import uuid
 import logging
 from typing import List, Optional, Dict, Any
 from core.database.base import Repository
@@ -30,7 +31,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to create organization: %s", e)
             raise
     
-    def get_by_id(self, org_id: int) -> Optional[Organization]:
+    def get_by_id(self, org_id: uuid.UUID) -> Optional[Organization]:
         """Get organization by ID."""
         try:
             return Organization.objects.get(org_id=org_id)
@@ -40,7 +41,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to get organization by ID: %s", e)
             raise
     
-    def update(self, org_id: int, data: Dict[str, Any]) -> Optional[Organization]:
+    def update(self, org_id: uuid.UUID, data: Dict[str, Any]) -> Optional[Organization]:
         """Update organization."""
         try:
             organization = self.get_by_id(org_id)
@@ -58,7 +59,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to update organization: %s", e)
             raise
     
-    def delete(self, org_id: int) -> bool:
+    def delete(self, org_id: uuid.UUID) -> bool:
         """Delete organization."""
         try:
             organization = self.get_by_id(org_id)
@@ -91,7 +92,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to list organizations: %s", e)
             raise
     
-    def add_member(self, org_id: int, user_id: int, permissions: Dict[str, bool]) -> OrganizationMember:
+    def add_member(self, org_id: uuid.UUID, user_id: uuid.UUID, permissions: Dict[str, bool]) -> OrganizationMember:
         """Add member to organization."""
         try:
             member = OrganizationMember.objects.create(
@@ -107,7 +108,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to add member: %s", e)
             raise
     
-    def remove_member(self, org_id: int, user_id: int) -> bool:
+    def remove_member(self, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Remove member from organization."""
         try:
             member = OrganizationMember.objects.get(
@@ -123,7 +124,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to remove member: %s", e)
             raise
     
-    def get_members(self, org_id: int) -> List[OrganizationMember]:
+    def get_members(self, org_id: uuid.UUID) -> List[OrganizationMember]:
         """Get organization members."""
         try:
             return list(OrganizationMember.objects.filter(organization_id=org_id))
@@ -131,7 +132,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to get members: %s", e)
             raise
     
-    def get_user_permissions(self, org_id: int, user_id: int) -> Optional[Dict[str, bool]]:
+    def get_user_permissions(self, org_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Dict[str, bool]]:
         """Get user permissions in organization."""
         try:
             member = OrganizationMember.objects.get(
@@ -178,7 +179,7 @@ class OrganizationRepository(Repository):
             logger.error("Failed to get invite by secret: %s", e)
             raise
     
-    def get_pending_invites(self, org_id: int) -> List[Invite]:
+    def get_pending_invites(self, org_id: uuid.UUID) -> List[Invite]:
         """Get pending invites for organization."""
         try:
             return list(Invite.objects.filter(
@@ -189,7 +190,31 @@ class OrganizationRepository(Repository):
             logger.error("Failed to get pending invites: %s", e)
             raise
     
-    def mark_invite_used(self, invite_id: int) -> bool:
+    def get_invite_by_id(self, invite_id: uuid.UUID) -> Optional[Invite]:
+        """Get invite by ID."""
+        try:
+            return Invite.objects.get(invite_id=invite_id)
+        except Invite.DoesNotExist:
+            return None
+        except Exception as e:
+            logger.error("Failed to get invite by ID: %s", e)
+            raise
+    
+    def mark_invite_unused(self, invite_id: uuid.UUID) -> bool:
+        """Mark invite as unused (rollback)."""
+        try:
+            invite = self.get_invite_by_id(invite_id)
+            if not invite:
+                return False
+            
+            invite.used = False
+            invite.save()
+            return True
+        except Exception as e:
+            logger.error("Failed to mark invite as unused: %s", e)
+            raise
+    
+    def mark_invite_used(self, invite_id: uuid.UUID) -> bool:
         """Mark invite as used."""
         try:
             invite = Invite.objects.get(invite_id=invite_id)

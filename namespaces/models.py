@@ -1,6 +1,7 @@
 """
 Namespace models for the URL shortener application.
 """
+import uuid
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -11,7 +12,7 @@ class Namespace(models.Model):
     Namespace model for organizing short URLs.
     Matches the database schema: namespaces table
     """
-    namespace_id = models.AutoField(primary_key=True, db_column='namespaceId')
+    namespace_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, db_column='namespaceId')
     organization = models.ForeignKey(
         'organizations.Organization',
         on_delete=models.CASCADE,

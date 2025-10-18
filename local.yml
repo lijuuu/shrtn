@@ -1,17 +1,17 @@
 version: "3"
 
 volumes:
-  hirethon_template_local_scylla_data: {}
-  hirethon_template_local_postgres_data: {}
-  hirethon_template_local_postgres_data_backups: {}
+  hirethon_local_scylla_data: {}
+  hirethon_local_postgres_data: {}
+  hirethon_local_postgres_data_backups: {}
 
 services:
   django: &django
     build:
       context: .
       dockerfile: ./compose/local/django/Dockerfile
-    image: hirethon_template_local_django
-    container_name: hirethon_template_local_django
+    image: hirethon_local_django
+    container_name: hirethon_local_django
     depends_on:
       - postgres
       - redis
@@ -28,37 +28,37 @@ services:
 
   scylla:
     image: scylladb/scylla:latest
-    container_name: hirethon_template_local_scylla
+    container_name: hirethon_local_scylla
     ports:
       - "9042:9042"
     volumes:
-      - hirethon_template_local_scylla_data:/var/lib/scylla
+      - hirethon_local_scylla_data:/var/lib/scylla
 
   postgres:
     image: postgres:15
-    container_name: hirethon_template_local_postgres
+    container_name: hirethon_local_postgres
     ports:
       - "5433:5432"
     volumes:
-      - hirethon_template_local_postgres_data:/var/lib/postgresql/data
-      - hirethon_template_local_postgres_data_backups:/backups
+      - hirethon_local_postgres_data:/var/lib/postgresql/data
+      - hirethon_local_postgres_data_backups:/backups
       - ./docker/postgres/init-database.sh:/docker-entrypoint-initdb.d/init-database.sh:ro
     env_file:
       - ./.envs/.local/.postgres
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-hirethon_template}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-shrtn}
+      - POSTGRES_USER=${POSTGRES_USER:-user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
 
   redis:
     image: redis:6
-    container_name: hirethon_template_local_redis
+    container_name: hirethon_local_redis
     #no volume for redis
 
   celeryworker:
     <<: *django
-    image: hirethon_template_local_celeryworker
-    container_name: hirethon_template_local_celeryworker
+    image: hirethon_local_celeryworker
+    container_name: hirethon_local_celeryworker
     depends_on:
       - redis
       - postgres
@@ -68,8 +68,8 @@ services:
 
   celerybeat:
     <<: *django
-    image: hirethon_template_local_celerybeat
-    container_name: hirethon_template_local_celerybeat
+    image: hirethon_local_celerybeat
+    container_name: hirethon_local_celerybeat
     depends_on:
       - redis
       - postgres
@@ -79,8 +79,8 @@ services:
 
   flower:
     <<: *django
-    image: hirethon_template_local_flower
-    container_name: hirethon_template_local_flower
+    image: hirethon_local_flower
+    container_name: hirethon_local_flower
     ports:
       - "5555:5555"
     command: /start-flower

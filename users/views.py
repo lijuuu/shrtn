@@ -1,6 +1,7 @@
 """
 User views layer for handling HTTP requests with serializers.
 """
+import uuid
 from typing import Dict, Any, Optional
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.http import require_http_methods
@@ -10,7 +11,7 @@ from django.views import View
 from django.core.exceptions import ValidationError
 import json
 
-from core.dependencies.services import service_dependency
+from core.dependencies.service_registry import service_registry
 from .serializers import (
     UserSerializer, 
     UserCreateSerializer, 
@@ -26,9 +27,9 @@ class UserView:
     """
     
     def __init__(self):
-        self.service = service_dependency.get_user_service()
+        self.service = service_registry.get_user_service()
     
-    def get_user(self, request: HttpRequest, user_id: int) -> JsonResponse:
+    def get_user(self, request: HttpRequest, user_id: uuid.UUID) -> JsonResponse:
         """Get user by ID using serializer."""
         try:
             user = self.service.get_by_id(user_id)
@@ -150,7 +151,7 @@ class UserView:
                 'payload': None
             }, status=500)
     
-    def update_user(self, request: HttpRequest, user_id: int) -> JsonResponse:
+    def update_user(self, request: HttpRequest, user_id: uuid.UUID) -> JsonResponse:
         """Update user using serializer."""
         try:
             data = json.loads(request.body)
@@ -207,7 +208,7 @@ class UserView:
                 'payload': None
             }, status=500)
     
-    def delete_user(self, request: HttpRequest, user_id: int) -> JsonResponse:
+    def delete_user(self, request: HttpRequest, user_id: uuid.UUID) -> JsonResponse:
         """Delete user."""
         try:
             success = self.service.delete(user_id)
@@ -305,7 +306,7 @@ class UserView:
                 'payload': None
             }, status=500)
     
-    def get_user_stats(self, request: HttpRequest, user_id: int) -> JsonResponse:
+    def get_user_stats(self, request: HttpRequest, user_id: uuid.UUID) -> JsonResponse:
         """Get user statistics."""
         try:
             stats = self.service.get_user_stats(user_id)

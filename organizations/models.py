@@ -1,6 +1,7 @@
 """
 Organization models for the URL shortener application.
 """
+import uuid
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -10,7 +11,7 @@ class Organization(models.Model):
     """
     Organization model for managing groups of users.
     """
-    org_id = models.AutoField(primary_key=True, db_column='orgId')
+    org_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, db_column='orgId')
     name = models.CharField(_("Organization Name"), max_length=255)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -65,7 +66,7 @@ class Invite(models.Model):
     """
     Organization invitation model.
     """
-    invite_id = models.AutoField(primary_key=True, db_column='inviteId')
+    invite_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, db_column='inviteId')
     invitee_email = models.EmailField(_("Invitee Email"))
     organization = models.ForeignKey(
         Organization,
@@ -106,7 +107,7 @@ class BulkUpload(models.Model):
         ('failed', _('Failed')),
     ]
 
-    upload_id = models.AutoField(primary_key=True, db_column='uploadId')
+    upload_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, db_column='uploadId')
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

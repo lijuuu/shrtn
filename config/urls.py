@@ -22,11 +22,15 @@ urlpatterns = [
     path("health/ready/", health_ready, name="health-ready"),
     path("health/live/", health_live, name="health-live"),
     
-    # API endpoints
-    path("api/", include("users.urls")),
-    path("api/", include("organizations.urls")),
-    path("api/", include("namespaces.urls")),
-    path("api/", include("urls.urls")),
+    # Authentication endpoints
+    path("auth/", include("authentication.urls")),
+    
+    # API endpoints - Version 1
+    path("api/v1/", include("users.urls")),
+    path("api/v1/", include("organizations.urls")),
+    path("api/v1/", include("namespaces.urls")),
+    path("api/v1/", include("urls.urls")),
+    path("api/v1/", include("analytics.urls")),
     
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
