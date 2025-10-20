@@ -23,7 +23,7 @@ services:
       - ./.envs/.local/.postgres
       - ./.envs/.local/.scylla
     ports:
-      - "8000:8000"
+      - "8081:8000"
     command: /start
 
   scylla:
@@ -53,6 +53,8 @@ services:
   redis:
     image: redis:6
     container_name: hirethon_local_redis
+    ports:
+      - "6379:6379"
     #no volume for redis
 
   celeryworker:
@@ -77,10 +79,10 @@ services:
     ports: []
     command: /start-celerybeat
 
-  flower:
-    <<: *django
-    image: hirethon_local_flower
-    container_name: hirethon_local_flower
-    ports:
-      - "5555:5555"
-    command: /start-flower
+  # flower:
+  #   <<: *django
+  #   image: hirethon_local_flower
+  #   container_name: hirethon_local_flower
+  #   ports:
+  #     - "5555:5555"
+  #   command: /start-flower

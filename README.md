@@ -1,91 +1,138 @@
-# hirethon-template
+# URL Shortener Service
 
-Behold My Awesome Project!
+A complete URL shortening service with user management, organizations, and analytics.
 
-[![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
-[![Black code style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+## What's Included
 
-## Settings
+### ✅ Core Features
+- **User Management**: Registration, login, profiles
+- **Organizations**: Company management with user roles
+- **Namespaces**: Organize URLs into folders
+- **URL Shortening**: Create and manage short links
+- **Analytics**: Track clicks and performance
+- **API Documentation**: Complete Swagger/OpenAPI docs
 
-Moved to [settings](http://cookiecutter-django.readthedocs.io/en/latest/settings.html).
+### ✅ Testing System
+- **Complete Test Suite**: Tests for all endpoints
+- **Data Generation**: Create 1000+ test entries
+- **Workflow Tests**: End-to-end testing
+- **Health Checks**: Monitor system status
 
-## Basic Commands
+## Quick Start
 
-### Setting Up Your Users
-
-- To create a **normal user account**, just go to Sign Up and fill out the form. Once you submit it, you'll see a "Verify Your E-mail Address" page. Go to your console to see a simulated email verification message. Copy the link into your browser. Now the user's email should be verified and ready to go.
-
-- To create a **superuser account**, use this command:
-
-      $ python manage.py createsuperuser
-
-For convenience, you can keep your normal user logged in on Chrome and your superuser logged in on Firefox (or similar), so that you can see how the site behaves for both kinds of users.
-
-### Type checks
-
-Running type checks with mypy:
-
-    $ mypy hirethon_template
-
-### Test coverage
-
-To run the tests, check your test coverage, and generate an HTML coverage report:
-
-    $ coverage run -m pytest
-    $ coverage html
-    $ open htmlcov/index.html
-
-#### Running tests with pytest
-
-    $ pytest
-
-### Live reloading and Sass CSS compilation
-
-Moved to [Live reloading and SASS compilation](https://cookiecutter-django.readthedocs.io/en/latest/developing-locally.html#sass-compilation-live-reloading).
-
-### Celery
-
-This app comes with Celery.
-
-To run a celery worker:
-
+### 1. Start Services
 ```bash
-cd hirethon_template
-celery -A config.celery_app worker -l info
+docker-compose -f local.yml up postgres redis scylla -d
 ```
 
-Please note: For Celery's import magic to work, it is important _where_ the celery commands are run. If you are in the same folder with _manage.py_, you should be right.
-
-To run [periodic tasks](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html), you'll need to start the celery beat scheduler service. You can start it as a standalone process:
-
+### 2. Run Tests
 ```bash
-cd hirethon_template
-celery -A config.celery_app beat
+pytest tests/ -v
 ```
 
-or you can embed the beat service inside a worker with the `-B` option (not recommended for production use):
-
+### 3. Add Test Data
 ```bash
-cd hirethon_template
-celery -A config.celery_app worker -B -l info
+python manage.py generate_bulk_data --users 1000 --organizations 1000 --namespaces 1000 --urls 1000 --clicks 5000
 ```
 
-## Deployment
+### 4. View Documentation
+Visit: http://localhost:8000/api/docs/
 
-The following details how to deploy this application.
+## Key Files
 
-### Docker
+### Core Application
+- `users/` - User management and authentication
+- `organizations/` - Company and team management
+- `namespaces/` - URL organization
+- `urls/` - URL shortening service
+- `analytics/` - Click tracking and analytics
 
-#### Building the Base Image
+### Testing
+- `tests/` - Complete test suite
+- `core/management/commands/generate_bulk_data.py` - Data generation tool
 
-Before running the project with Docker, you need to build the base image first:
+### Configuration
+- `config/settings/` - Django settings
+- `local.yml` - Docker services
+- `.envs/` - Environment variables
 
-```bash
-docker build -t cookiecutter-django-base:latest -f compose/django/Dockerfile.base .
+## API Endpoints
+
+### Health
+- `GET /health/` - Basic health check
+- `GET /health/detailed/` - Detailed system status
+
+### Authentication
+- `POST /auth/register/` - User registration
+- `POST /auth/login/` - User login
+- `POST /auth/refresh/` - Refresh token
+
+### Users
+- `GET /api/v1/users/` - List users
+- `GET /api/v1/users/{id}/` - Get user details
+- `PUT /api/v1/users/{id}/` - Update user
+
+### Organizations
+- `GET /api/v1/organizations/` - List organizations
+- `POST /api/v1/organizations/` - Create organization
+- `GET /api/v1/organizations/{id}/` - Get organization
+
+### Namespaces
+- `GET /api/v1/namespaces/` - List namespaces
+- `POST /api/v1/namespaces/` - Create namespace
+
+### URLs
+- `GET /api/v1/urls/` - List short URLs
+- `POST /api/v1/urls/` - Create short URL
+- `GET /{shortcode}` - Redirect to original URL
+
+### Analytics
+- `GET /api/v1/analytics/` - Get analytics data
+- `GET /api/v1/analytics/clicks/` - Click statistics
+
+## Database
+
+- **PostgreSQL**: Main database for users, organizations, namespaces
+- **ScyllaDB**: High-performance storage for URLs and analytics
+- **Redis**: Caching and session storage
+
+## Environment Setup
+
+Required environment variables in `.envs/.local/.django`:
+```
+DATABASE_URL=postgres://user:password@postgres:5432/shrtn
+CELERY_BROKER_URL=redis://redis:6379/0
+REDIS_URL=redis://redis:6379/0
 ```
 
-This base image contains common dependencies and is used by both local development and production environments.
+## Testing
 
-#### Local Development and Deployment
+### Run All Tests
+```bash
+pytest tests/ -v
+```
 
-See detailed [cookiecutter-django Docker documentation](http://cookiecutter-django.readthedocs.io/en/latest/deployment-with-docker.html).
+### Run Specific Tests
+```bash
+pytest tests/test_health_endpoints.py -v
+pytest tests/test_auth_endpoints.py -v
+```
+
+### Generate Test Data
+```bash
+python manage.py generate_bulk_data --users 100 --organizations 50 --namespaces 100 --urls 200 --clicks 500
+```
+
+## Documentation
+
+- **API Docs**: http://localhost:8000/api/docs/
+- **ReDoc**: http://localhost:8000/api/redoc/
+- **Schema**: http://localhost:8000/api/schema/
+
+## Status
+
+✅ **Complete and Working**
+- All endpoints tested and working
+- Data generation system ready
+- Documentation available
+- Ready for production use

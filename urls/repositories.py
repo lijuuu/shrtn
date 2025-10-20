@@ -222,7 +222,43 @@ class UrlRepository(Repository):
     def list(self, filters: Optional[Dict[str, Any]] = None) -> List[ShortUrl]:
         """List short URLs with optional filters."""
         try:
-            if filters and 'created_by_user_id' in filters:
+            if not filters:
+                return []
+            
+            # Handle namespace_id filtering (most common case)
+            if 'namespace_id' in filters:
+                namespace_id = filters['namespace_id']
+                logger.info("Listing URLs for namespace_id: %s", namespace_id)
+                query = """
+                SELECT * FROM short_urls
+                WHERE namespace_id = ?
+                ALLOW FILTERING
+                """
+                
+                results = self.scylla.execute_query(query, [namespace_id])
+                logger.info("ScyllaDB query returned %d results", len(results))
+                urls = []
+                for row in results:
+                    urls.append(ShortUrl(
+                        id=row.id,
+                        namespace_id=row.namespace_id,
+                        shortcode=row.shortcode,
+                        original_url=row.original_url,
+                        created_by_user_id=row.created_by_user_id,
+                        expiry=row.expiry,
+                        click_count=row.click_count,
+                        created_at=row.created_at,
+                        updated_at=row.updated_at,
+                        is_private=row.is_private,
+                        is_active=getattr(row, 'is_active', True),
+                        title=getattr(row, 'title', None),
+                        description=getattr(row, 'description', None),
+                        tags=list(row.tags) if row.tags else []
+                    ))
+                return urls
+            
+            # Handle created_by_user_id filtering
+            elif 'created_by_user_id' in filters:
                 query = """
                 SELECT * FROM short_urls
                 WHERE created_by_user_id = ?
@@ -243,9 +279,13 @@ class UrlRepository(Repository):
                         created_at=row.created_at,
                         updated_at=row.updated_at,
                         is_private=row.is_private,
+                        is_active=getattr(row, 'is_active', True),
+                        title=getattr(row, 'title', None),
+                        description=getattr(row, 'description', None),
                         tags=list(row.tags) if row.tags else []
                     ))
                 return urls
+            
             return []
         except Exception as e:
             logger.error("Failed to list short URLs: %s", e)

@@ -3,45 +3,39 @@ User serializers for data transformation with comprehensive validation.
 """
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 import re
 
 User = get_user_model()
 
 
-class UserSerializer(serializers.ModelSerializer):
-    """Serializer for User model - converts User object to/from JSON."""
+class UserPublicSerializer(serializers.ModelSerializer):
+    """Public user serializer - limited fields for public display."""
     
     class Meta:
         model = User
-        fields = [
-            'id', 'email', 'name', 'username', 'verified', 
-            'is_active', 'is_staff', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'username', 'verified']
+        read_only_fields = ['id']
 
 
-class UserCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating new users with comprehensive validation."""
+class UserListSerializer(serializers.ModelSerializer):
+    """Serializer for user list views - optimized for listing."""
     
-    # Custom field definitions with validation
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'name', 'username', 'verified', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+# Authentication serializers moved from authentication app
+class UserRegistrationSerializer(serializers.Serializer):
+    """Serializer for user registration with comprehensive validation."""
+    
     email = serializers.EmailField(
         required=True,
         max_length=254,
         help_text="Valid email address"
-    )
-    name = serializers.CharField(
-        required=True,
-        max_length=255,
-        min_length=2,
-        help_text="Full name (2-255 characters)"
-    )
-    username = serializers.CharField(
-        required=True,
-        max_length=150,
-        min_length=3,
-        help_text="Username (3-150 characters, alphanumeric and underscores only)"
     )
     password = serializers.CharField(
         required=True,
@@ -50,10 +44,18 @@ class UserCreateSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text="Password (8-128 characters)"
     )
-    
-    class Meta:
-        model = User
-        fields = ['email', 'name', 'username', 'password']
+    name = serializers.CharField(
+        required=True,
+        max_length=255,
+        min_length=2,
+        help_text="Full name (2-255 characters)"
+    )
+    organization_name = serializers.CharField(
+        required=False,
+        max_length=255,
+        allow_blank=True,
+        help_text="Organization name (optional)"
+    )
     
     def validate_email(self, value):
         """Validate email format and uniqueness."""
@@ -71,36 +73,6 @@ class UserCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A user with this email already exists")
         
         return value.lower().strip()
-    
-    def validate_username(self, value):
-        """Validate username format and uniqueness."""
-        if not value:
-            raise serializers.ValidationError("Username is required")
-        
-        # Check username format (alphanumeric and underscores only)
-        if not re.match(r'^[a-zA-Z0-9_]+$', value):
-            raise serializers.ValidationError(
-                "Username can only contain letters, numbers, and underscores"
-            )
-        
-        # Check if username already exists
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("A user with this username already exists")
-        
-        return value.lower().strip()
-    
-    def validate_name(self, value):
-        """Validate name format."""
-        if not value:
-            raise serializers.ValidationError("Name is required")
-        
-        # Check if name contains only letters, spaces, and common punctuation
-        if not re.match(r'^[a-zA-Z\s\-\'\.]+$', value):
-            raise serializers.ValidationError(
-                "Name can only contain letters, spaces, hyphens, apostrophes, and periods"
-            )
-        
-        return value.strip()
     
     def validate_password(self, value):
         """Validate password strength."""
@@ -129,53 +101,76 @@ class UserCreateSerializer(serializers.ModelSerializer):
         
         return value
     
-    def validate(self, data):
-        """Cross-field validation."""
-        email = data.get('email', '')
-        username = data.get('username', '')
+    def validate_name(self, value):
+        """Validate name format."""
+        if not value:
+            raise serializers.ValidationError("Name is required")
         
-        # Check if username is same as email prefix
-        if email and username:
-            email_prefix = email.split('@')[0]
-            if username.lower() == email_prefix.lower():
-                raise serializers.ValidationError({
-                    'username': "Username cannot be the same as email prefix"
-                })
+        # Check if name contains only letters, spaces, and common punctuation
+        if not re.match(r'^[a-zA-Z\s\-\'\.]+$', value):
+            raise serializers.ValidationError(
+                "Name can only contain letters, spaces, hyphens, apostrophes, and periods"
+            )
         
-        return data
-    
-    def create(self, validated_data):
-        """Create a new user with hashed password."""
-        password = validated_data.pop('password')
-        user = User.objects.create_user(password=password, **validated_data)
-        return user
+        return value.strip()
 
 
-class UserUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating existing users with validation."""
+class UserLoginSerializer(serializers.Serializer):
+    """Serializer for user login."""
     
-    # Custom field definitions with validation
     email = serializers.EmailField(
-        required=False,
-        max_length=254,
-        help_text="Valid email address"
+        required=True,
+        help_text="User email address"
     )
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        help_text="User password"
+    )
+    
+    def validate_email(self, value):
+        """Validate email format."""
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        
+        try:
+            validate_email(value)
+        except ValidationError:
+            raise serializers.ValidationError("Enter a valid email address")
+        
+        return value.lower().strip()
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for user profile information."""
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'email', 'name', 'username', 'verified', 
+            'is_active', 'google_id', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile."""
+    
     name = serializers.CharField(
         required=False,
         max_length=255,
         min_length=2,
         help_text="Full name (2-255 characters)"
     )
-    username = serializers.CharField(
+    email = serializers.EmailField(
         required=False,
-        max_length=150,
-        min_length=3,
-        help_text="Username (3-150 characters, alphanumeric and underscores only)"
+        max_length=254,
+        help_text="Valid email address"
     )
     
     class Meta:
         model = User
-        fields = ['email', 'name', 'username', 'verified', 'is_active']
+        fields = ['name', 'email']
     
     def validate_email(self, value):
         """Validate email format and uniqueness (excluding current user)."""
@@ -195,24 +190,6 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         
         return value.lower().strip()
     
-    def validate_username(self, value):
-        """Validate username format and uniqueness (excluding current user)."""
-        if not value:
-            return value
-        
-        # Check username format (alphanumeric and underscores only)
-        if not re.match(r'^[a-zA-Z0-9_]+$', value):
-            raise serializers.ValidationError(
-                "Username can only contain letters, numbers, and underscores"
-            )
-        
-        # Check if username already exists (excluding current user)
-        current_user = self.instance
-        if User.objects.filter(username=value).exclude(id=current_user.id).exists():
-            raise serializers.ValidationError("A user with this username already exists")
-        
-        return value.lower().strip()
-    
     def validate_name(self, value):
         """Validate name format."""
         if not value:
@@ -225,42 +202,9 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             )
         
         return value.strip()
-    
-    def validate(self, data):
-        """Cross-field validation."""
-        email = data.get('email', '')
-        username = data.get('username', '')
-        
-        # Check if username is same as email prefix
-        if email and username:
-            email_prefix = email.split('@')[0]
-            if username.lower() == email_prefix.lower():
-                raise serializers.ValidationError({
-                    'username': "Username cannot be the same as email prefix"
-                })
-        
-        return data
 
 
-class UserPublicSerializer(serializers.ModelSerializer):
-    """Public user serializer - limited fields for public display."""
-    
-    class Meta:
-        model = User
-        fields = ['id', 'name', 'username', 'verified']
-        read_only_fields = ['id']
-
-
-class UserListSerializer(serializers.ModelSerializer):
-    """Serializer for user list views - optimized for listing."""
-    
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'name', 'username', 'verified', 'created_at']
-        read_only_fields = ['id', 'created_at']
-
-
-class UserPasswordChangeSerializer(serializers.Serializer):
+class PasswordChangeSerializer(serializers.Serializer):
     """Serializer for changing user password."""
     
     current_password = serializers.CharField(
@@ -333,3 +277,75 @@ class UserPasswordChangeSerializer(serializers.Serializer):
             })
         
         return data
+
+
+class AuthResponseSerializer(serializers.Serializer):
+    """Serializer for authentication response data."""
+    
+    user = UserProfileSerializer()
+    tokens = serializers.DictField()
+    organization = serializers.DictField(required=False)
+
+
+class AuthStatusSerializer(serializers.Serializer):
+    """Serializer for authentication status response."""
+    
+    authenticated = serializers.BooleanField()
+    user = UserProfileSerializer(required=False, allow_null=True)
+    tokens = serializers.DictField(required=False, allow_null=True)
+
+
+class GoogleLoginSerializer(serializers.Serializer):
+    """Serializer for Google OAuth login."""
+    
+    google_id = serializers.CharField(
+        required=True,
+        max_length=255,
+        help_text="Google user ID"
+    )
+    email = serializers.EmailField(
+        required=True,
+        help_text="Google account email"
+    )
+    name = serializers.CharField(
+        required=True,
+        max_length=255,
+        help_text="Full name from Google"
+    )
+    picture = serializers.URLField(
+        required=False,
+        allow_blank=True,
+        help_text="Profile picture URL from Google"
+    )
+    
+    def validate_google_id(self, value):
+        """Validate Google ID format."""
+        if not value:
+            raise serializers.ValidationError("Google ID is required")
+        
+        # Google IDs are typically numeric strings
+        if not value.isdigit():
+            raise serializers.ValidationError("Invalid Google ID format")
+        
+        return value
+    
+    def validate_email(self, value):
+        """Validate email format."""
+        if not value:
+            raise serializers.ValidationError("Email is required")
+        
+        try:
+            validate_email(value)
+        except ValidationError:
+            raise serializers.ValidationError("Enter a valid email address")
+        
+        return value.lower().strip()
+    
+    def validate_name(self, value):
+        """Validate name format."""
+        if not value:
+            raise serializers.ValidationError("Name is required")
+        
+        return value.strip()
+
+

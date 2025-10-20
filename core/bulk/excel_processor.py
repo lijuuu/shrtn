@@ -28,57 +28,109 @@ class ExcelProcessor:
         Process Excel file with URLs and return shortened URLs.
         
         Expected Excel format:
-        - Column A: Original URLs
-        - Column B: Custom Shortcodes (optional)
-        - Column C: Tags (optional, comma-separated)
+        - Column A: Shortcode
+        - Column B: Namespace
+        - Column C: Long URLs
         """
         try:
-            # Read Excel file
-            df = pd.read_excel(excel_file)
+            # Read Excel file using openpyxl directly to avoid pandas/numpy issues
+            excel_file.seek(0)
+            import openpyxl
+            wb = openpyxl.load_workbook(excel_file)
+            ws = wb.active
             
-            if df.empty:
-                raise ValueError("Excel file is empty")
+            # Convert to list of dictionaries (avoiding pandas for now)
+            data = []
+            headers = None
+            
+            for row in ws.iter_rows(values_only=True):
+                if any(cell is not None for cell in row):  # Skip empty rows
+                    if headers is None:
+                        # First non-empty row is headers
+                        headers = [str(cell) if cell is not None else '' for cell in row]
+                    else:
+                        # Data row
+                        row_data = [str(cell) if cell is not None else '' for cell in row]
+                        if len(row_data) >= len(headers):
+                            # Create dictionary
+                            row_dict = {}
+                            for i, header in enumerate(headers):
+                                row_dict[header] = row_data[i] if i < len(row_data) else ''
+                            data.append(row_dict)
+            
+            if not data:
+                raise ValueError("Excel file is empty or has no data rows")
             
             # Validate columns
-            if len(df.columns) < 1:
-                raise ValueError("Excel file must have at least one column (URLs)")
+            if not data or len(data[0]) < 3:
+                raise ValueError("Excel file must have at least 3 columns: shortcode, namespace, longurls")
             
             # Process URLs
             results = []
             errors = []
             
-            for index, row in df.iterrows():
+            for index, row in enumerate(data):
                 try:
-                    original_url = str(row.iloc[0]).strip()
-                    custom_shortcode = str(row.iloc[1]).strip() if len(df.columns) > 1 and pd.notna(row.iloc[1]) else None
-                    tags = str(row.iloc[2]).split(',') if len(df.columns) > 2 and pd.notna(row.iloc[2]) else []
+                    # Get values by column name (case insensitive)
+                    shortcode = row.get('shortcode', '').strip()
+                    namespace_name = row.get('namespace', '').strip()
+                    original_url = row.get('longurls', '').strip()
                     
-                    # Clean up tags
-                    tags = [tag.strip() for tag in tags if tag.strip()]
+                    # Validate required fields
+                    if not shortcode or shortcode == 'nan':
+                        errors.append(f"Row {index + 2}: Empty shortcode")
+                        continue
                     
-                    # Validate URL
+                    if not namespace_name or namespace_name == 'nan':
+                        errors.append(f"Row {index + 2}: Empty namespace")
+                        continue
+                    
                     if not original_url or original_url == 'nan':
                         errors.append(f"Row {index + 2}: Empty URL")
                         continue
                     
-                    # Generate shortcode
-                    if custom_shortcode and custom_shortcode != 'nan':
-                        shortcode = self.shortcode_generator.generate_unique_shortcode(
-                            namespace_id, method, custom_shortcode
-                        )
-                    else:
-                        shortcode = self.shortcode_generator.generate_unique_shortcode(
-                            namespace_id, method
-                        )
+                    # Validate shortcode format
+                    import re
+                    if not re.match(r'^[a-zA-Z0-9_-]+$', shortcode):
+                        errors.append(f"Row {index + 2}: Invalid shortcode format '{shortcode}'")
+                        continue
+                    
+                    # Validate URL format
+                    url_pattern = re.compile(
+                        r'^https?://'  # http:// or https://
+                        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+                        r'localhost|'  # localhost...
+                        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+                        r'(?::\d+)?'  # optional port
+                        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+                    
+                    if not url_pattern.match(original_url):
+                        errors.append(f"Row {index + 2}: Invalid URL format '{original_url}'")
+                        continue
+                    
+                    # Get namespace ID from namespace name
+                    namespace_service = service_registry.get_namespace_service()
+                    target_namespace = namespace_service.get_by_name(namespace_name)
+                    if not target_namespace:
+                        errors.append(f"Row {index + 2}: Namespace '{namespace_name}' not found")
+                        continue
+                    
+                    target_namespace_id = target_namespace.namespace_id
+                    
+                    # Check if shortcode already exists in target namespace
+                    if not self.shortcode_generator.is_shortcode_available(target_namespace_id, shortcode):
+                        errors.append(f"Row {index + 2}: Shortcode '{shortcode}' already exists in namespace '{namespace_name}'")
+                        continue
                     
                     # Create URL data
                     url_data = {
-                        'namespace_id': namespace_id,
+                        'namespace_id': target_namespace_id,
                         'shortcode': shortcode,
                         'original_url': original_url,
                         'created_by_user_id': user_id,
-                        'tags': tags,
-                        'is_private': False
+                        'tags': [],
+                        'is_private': False,
+                        'is_active': True
                     }
                     
                     # Create URL in database
@@ -217,20 +269,20 @@ class ExcelProcessor:
     def get_template_excel(self) -> bytes:
         """Generate template Excel file for bulk URL upload."""
         template_data = {
-            'Original URL': [
+            'shortcode': [
+                'example-link',
+                'google-search',
+                'github-repo'
+            ],
+            'namespace': [
+                'main',
+                'main',
+                'dev'
+            ],
+            'longurls': [
                 'https://example.com/page1',
-                'https://example.com/page2',
-                'https://example.com/page3'
-            ],
-            'Custom Shortcode (Optional)': [
-                'custom1',
-                'custom2',
-                ''  # Empty for auto-generation
-            ],
-            'Tags (Optional)': [
-                'marketing, campaign1',
-                'social, campaign2',
-                'internal'
+                'https://google.com',
+                'https://github.com/user/repo'
             ]
         }
         
@@ -242,16 +294,21 @@ class ExcelProcessor:
             
             # Add instructions sheet
             instructions_data = {
-                'Column': ['Original URL', 'Custom Shortcode (Optional)', 'Tags (Optional)'],
+                'Column': ['shortcode', 'namespace', 'longurls'],
                 'Description': [
-                    'The original URL to be shortened (required)',
-                    'Custom shortcode for the URL (optional, leave empty for auto-generation)',
-                    'Comma-separated tags for the URL (optional)'
+                    'Custom shortcode for the URL (required)',
+                    'Target namespace name (required)',
+                    'Original URL to be shortened (required)'
+                ],
+                'Rules': [
+                    '2+ characters, letters, numbers, hyphens, underscores only',
+                    'Must exist in your organization',
+                    'Must be valid (http:// or https://)'
                 ],
                 'Example': [
-                    'https://example.com/page1',
-                    'custom1',
-                    'marketing, campaign1'
+                    'example-link',
+                    'main',
+                    'https://example.com/page1'
                 ]
             }
             

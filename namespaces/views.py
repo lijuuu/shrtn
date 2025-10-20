@@ -13,6 +13,13 @@ import json
 
 from core.dependencies.service_registry import service_registry
 from core.permissions.decorators import require_organization_permission
+from core.utils.view_helpers import get_authenticated_user
+from core.utils.response import (
+    success_response, 
+    error_response, 
+    unauthorized_response,
+    server_error_response
+)
 from .serializers import (
     NamespaceSerializer,
     NamespaceCreateSerializer,
@@ -29,85 +36,82 @@ class NamespaceView:
     def __init__(self):
         self.service = service_registry.get_namespace_service()
     
-    @require_organization_permission('can_view')
     def list_namespaces(self, request: HttpRequest, org_id: uuid.UUID) -> JsonResponse:
         """List organization namespaces."""
+        # Check authentication
+        user = get_authenticated_user(request)
+        if not user:
+            return unauthorized_response('Authentication required')
+        
+        # Check user permissions in organization
         try:
+            organization_service = service_registry.get_organization_service()
+            user_permissions = organization_service.get_user_permissions(org_id, user.id)
+            
+            if not user_permissions:
+                return error_response('You are not a member of this organization', 403)
+            
+            # Check if user has view permission
+            if not user_permissions.get('can_view', False):
+                return error_response('Insufficient permissions. Required: can_view', 403)
+            
             filters = {'org_id': org_id}
             namespaces = self.service.list(filters)
             
             serializer = NamespaceSerializer(namespaces, many=True)
-            return JsonResponse({
-                'message': 'Namespaces retrieved successfully',
-                'status_code': 200,
-                'success': True,
-                'payload': {
-                    'namespaces': serializer.data,
-                    'count': len(serializer.data)
-                }
+            return success_response('Namespaces retrieved successfully', {
+                'namespaces': serializer.data,
+                'count': len(serializer.data)
             })
             
         except Exception as e:
-            return JsonResponse({
-                'message': 'Internal server error',
-                'status_code': 500,
-                'success': False,
-                'payload': None
-            }, status=500)
+            return server_error_response('Internal server error')
     
-    @require_organization_permission('can_admin')
+    @method_decorator(csrf_exempt)
     def create_namespace(self, request: HttpRequest, org_id: uuid.UUID) -> JsonResponse:
         """Create new namespace."""
+        # Check authentication
+        user = get_authenticated_user(request)
+        if not user:
+            return unauthorized_response('Authentication required')
+        
+        # Check user permissions in organization
         try:
+            organization_service = service_registry.get_organization_service()
+            user_permissions = organization_service.get_user_permissions(org_id, user.id)
+            
+            if not user_permissions:
+                return error_response('You are not a member of this organization', 403)
+            
+            # Check if user has admin permission
+            if not user_permissions.get('can_admin', False):
+                return error_response('Insufficient permissions. Required: can_admin', 403)
+            
             data = json.loads(request.body)
             data['org_id'] = org_id
-            
-            # Get user ID from request (would come from JWT in real implementation)
-            user_id = request.user.id if hasattr(request, 'user') and request.user.is_authenticated else 1
-            data['created_by_user_id'] = user_id
+            data['created_by_user_id'] = user.id
             
             serializer = NamespaceCreateSerializer(data=data)
             if serializer.is_valid():
-                namespace = self.service.create(serializer.validated_data)
+                # Pass the validated data along with org_id and created_by_user_id
+                service_data = serializer.validated_data.copy()
+                service_data['org_id'] = org_id
+                service_data['created_by_user_id'] = user.id
+                namespace = self.service.create(service_data)
                 
                 response_serializer = NamespaceSerializer(namespace)
-                return JsonResponse({
-                    'message': 'Namespace created successfully',
-                    'status_code': 201,
-                    'success': True,
-                    'payload': response_serializer.data
-                }, status=201)
+                return success_response('Namespace created successfully', response_serializer.data, 201)
             else:
-                return JsonResponse({
-                    'message': 'Validation failed',
-                    'status_code': 400,
-                    'success': False,
-                    'payload': {
-                        'errors': serializer.errors
-                    }
-                }, status=400)
+                return error_response('Validation failed', 400, {
+                    'errors': serializer.errors
+                })
             
         except json.JSONDecodeError:
-            return JsonResponse({
-                'message': 'Invalid JSON format',
-                'status_code': 400,
-                'success': False,
-                'payload': None
-            }, status=400)
+            return error_response('Invalid JSON format', 400)
         except ValidationError as e:
-            return JsonResponse({
-                'message': str(e),
-                'status_code': 400,
-                'success': False,
-                'payload': None
-            }, status=400)
+            return error_response(str(e), 400)
         except Exception as e:
-            return JsonResponse({
-                'message': 'Internal server error',
-                'status_code': 500,
-                'success': False,
-                'payload': None
-            }, status=500)
+            return server_error_response('Internal server error')
     
     def get_namespace(self, request: HttpRequest, namespace: str) -> JsonResponse:
         """Get namespace by name."""

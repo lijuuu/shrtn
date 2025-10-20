@@ -53,7 +53,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ------------------------------------------------------------------------------
 # ScyllaDB connection settings for URL shortening
 SCYLLA_HOSTS = env("SCYLLA_HOSTS", default="127.0.0.1:9042")
-SCYLLA_KEYSPACE = env("SCYLLA_KEYSPACE", default="hirethon_keyspace")
+SCYLLA_KEYSPACE = env("SCYLLA_KEYSPACE", default="shrtn_keyspace")
 SCYLLA_TABLE = env("SCYLLA_TABLE", default="short_urls")
 SCYLLA_VNODES = env.int("SCYLLA_VNODES", default=3)
 SCYLLA_SHARD_COUNT = env.int("SCYLLA_SHARD_COUNT", default=3)
@@ -85,6 +85,10 @@ DJANGO_APPS = [
 ]
 THIRD_PARTY_APPS = [
     "django_celery_beat",
+    "corsheaders",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "drf_spectacular",
 ]
 
 LOCAL_APPS = [
@@ -136,11 +140,13 @@ AUTH_PASSWORD_VALIDATORS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.jwt_auth_middleware.JWTAuthenticationMiddleware",  # JWT authentication
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -287,7 +293,98 @@ CELERY_WORKER_SEND_TASK_EVENTS = True
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std-setting-task_send_sent_event
 CELERY_TASK_SEND_SENT_EVENT = True
 
-# REST framework and API configurations removed - only health endpoints
+# REST FRAMEWORK
+# ------------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+}
+
+# DRF SPECTACULAR SETTINGS
+# ------------------------------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Hirethon Django Template API",
+    "DESCRIPTION": """
+    A comprehensive URL shortening service with organization management, analytics, and more.
+    
+    ## Features
+    - **User Management**: Registration, authentication, profile management
+    - **Organizations**: Company management with role-based permissions
+    - **Namespaces**: Organize URLs into folders within organizations
+    - **URL Shortening**: Create, manage, and track short URLs
+    - **Analytics**: Comprehensive click tracking and reporting
+    - **Bulk Operations**: Excel upload/download for bulk URL management
+    
+    ## Authentication
+    Most endpoints require JWT authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+    
+    ## Pagination
+    List endpoints support pagination with these parameters:
+    - `page` (integer): Page number (default: 1)
+    - `limit` (integer): Items per page (default: 20, max: 100)
+    - `search` (string): Search query
+    - `sort` (string): Sort field
+    - `order` (string): Sort order (asc, desc)
+    
+    ## Rate Limiting
+    - Authentication: 5 requests/minute per IP
+    - User management: 100 requests/hour per user
+    - Organization management: 50 requests/hour per user
+    - URL operations: 100 requests/hour per user
+    - Analytics: 100 requests/hour per user
+    - Bulk operations: 10 requests/hour per user
+    """,
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/v1/",
+    "AUTHENTICATION_WHITELIST": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "SERVERS": [
+        {"url": "http://localhost:8000", "description": "Development server"},
+    ],
+    "TAGS": [
+        {"name": "Health", "description": "Health check endpoints for monitoring system status"},
+        {"name": "Authentication", "description": "User authentication, registration, and session management"},
+        {"name": "Users", "description": "User profile management and user operations"},
+        {"name": "Organizations", "description": "Organization management, member administration, and invitations"},
+        {"name": "Namespaces", "description": "Namespace management for organizing URLs within organizations"},
+        {"name": "URLs", "description": "URL shortening, management, bulk operations, and resolution"},
+        {"name": "Analytics", "description": "Comprehensive analytics, click tracking, and reporting"},
+    ],
+    "EXTENSIONS_INFO": {
+        "x-logo": {
+            "url": "https://via.placeholder.com/200x50/0066cc/ffffff?text=Hirethon+API",
+            "altText": "Hirethon API Logo"
+        }
+    },
+    "CONTACT": {
+        "name": "Hirethon API Support",
+        "email": "support@hirethon.com"
+    },
+    "LICENSE": {
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT"
+    },
+    "EXTERNAL_DOCS": {
+        "description": "Complete API Documentation",
+        "url": "http://localhost:8000/docs/api/"
+    }
+}
 
 # Customize admin site
 ADMIN_SITE_HEADER = "Hirethon Admin"

@@ -68,5 +68,80 @@ ADMIN_SITE_HEADER = "{} Admin (Development)".format("hirethon_template".title())
 ADMIN_SITE_TITLE = "{} Admin Portal (Development)".format("hirethon_template".title())
 ADMIN_INDEX_TITLE = "Welcome to {} Admin Portal (Development)".format("hirethon_template".title())
 
+# CORS Settings for Development
+# ------------------------------------------------------------------------------
+# Allow all origins in development
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Allow credentials for CORS requests
+CORS_ALLOW_CREDENTIALS = True
+
+# Allow all localhost ports
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "http://localhost:8000",
+    "http://localhost:8080",  # Added for your frontend
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",  # Added for your frontend
+    "http://0.0.0.0:3000",
+    "http://0.0.0.0:3001",
+    "http://0.0.0.0:8000",
+    "http://0.0.0.0:8080",  # Added for your frontend
+]
+
+# Allow any localhost port
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$", 
+    r"^http://0\.0\.0\.0:\d+$",
+]
+
+# Allow all headers
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "cache-control",
+    "pragma",
+    "x-api-key",
+]
+
+# Allow all methods
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+# CSRF Settings for Development
+# ------------------------------------------------------------------------------
+# Allow all localhost origins for CSRF
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "http://localhost:8000",
+    "http://localhost:8080",  # Added for your frontend
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",  # Added for your frontend
+    "http://0.0.0.0:3000",
+    "http://0.0.0.0:3001",
+    "http://0.0.0.0:8000",
+    "http://0.0.0.0:8080",  # Added for your frontend
+]
+
 # Your stuff...
 # ------------------------------------------------------------------------------

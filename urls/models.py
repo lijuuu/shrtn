@@ -23,6 +23,9 @@ class ShortUrl:
         created_at: Optional[datetime] = None,
         updated_at: Optional[datetime] = None,
         is_private: bool = False,
+        is_active: bool = True,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
         tags: Optional[List[str]] = None,
     ):
         self.id = id if id is not None else uuid.uuid4()
@@ -35,20 +38,26 @@ class ShortUrl:
         self.created_at = created_at if created_at is not None else datetime.now()
         self.updated_at = updated_at if updated_at is not None else datetime.now()
         self.is_private = is_private
+        self.is_active = is_active
+        self.title = title
+        self.description = description
         self.tags = tags if tags is not None else []
 
     def to_dict(self):
         return {
             "id": str(self.id),
-            "namespace_id": self.namespace_id,
+            "namespace_id": str(self.namespace_id),
             "shortcode": self.shortcode,
             "original_url": self.original_url,
-            "created_by_user_id": self.created_by_user_id,
+            "created_by_user_id": str(self.created_by_user_id),
             "expiry": self.expiry.isoformat() if self.expiry else None,
             "click_count": self.click_count,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "is_private": self.is_private,
+            "is_active": self.is_active,
+            "title": self.title,
+            "description": self.description,
             "tags": self.tags,
         }
 
@@ -65,6 +74,9 @@ class ShortUrl:
             created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
             is_private=data.get("is_private", False),
+            is_active=data.get("is_active", True),
+            title=data.get("title"),
+            description=data.get("description"),
             tags=data.get("tags", []),
         )
 

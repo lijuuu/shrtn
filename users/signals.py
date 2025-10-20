@@ -37,4 +37,3 @@ def create_default_organization(sender, instance, created, **kwargs):
             logger.error("Failed to create default organization for user %s: %s", 
                         instance.email, e)
             # Don't raise here to avoid breaking user creation
-

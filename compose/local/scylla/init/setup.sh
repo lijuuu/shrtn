@@ -18,20 +18,20 @@ echo "ScyllaDB is ready. Setting up keyspace and tables..."
 
 # Create keyspace with environment variables
 cqlsh scylla -e "
-CREATE KEYSPACE IF NOT EXISTS ${SCYLLA_KEYSPACE:-hirethon_keyspace}
+CREATE KEYSPACE IF NOT EXISTS ${SCYLLA_KEYSPACE:-shrtn_keyspace}
 WITH REPLICATION = {
     'class': 'SimpleStrategy',
     'replication_factor': ${SCYLLA_REPLICATION_FACTOR:-1}
 };"
 
-echo "Keyspace '${SCYLLA_KEYSPACE:-hirethon_keyspace}' created successfully."
+echo "Keyspace '${SCYLLA_KEYSPACE:-shrtn_keyspace}' created successfully."
 
 # Use the keyspace
-cqlsh scylla -e "USE ${SCYLLA_KEYSPACE:-hirethon_keyspace};"
+cqlsh scylla -e "USE ${SCYLLA_KEYSPACE:-shrtn_keyspace};"
 
 # Create tables
 cqlsh scylla -e "
-USE ${SCYLLA_KEYSPACE:-hirethon_keyspace};
+USE ${SCYLLA_KEYSPACE:-shrtn_keyspace};
 
 -- Create short_urls table with composite partition key for 3-shard distribution
 CREATE TABLE IF NOT EXISTS short_urls (

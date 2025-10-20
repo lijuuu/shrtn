@@ -59,18 +59,18 @@ class AnalyticsService:
             
             # Prepare analytics data
             now = datetime.now(timezone.utc)
-            lookup_date = now.date()
+            click_date = now.date()
             
-            # Insert into url_analytics table
+            # Insert into click_analytics table
             insert_query = """
-            INSERT INTO url_analytics (
-                namespace_id, shortcode, lookup_date, lookup_timestamp,
+            INSERT INTO click_analytics (
+                namespace_id, shortcode, click_date, click_timestamp,
                 country, ip_address, user_agent, referer
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             self.scylla.execute_update(insert_query, [
-                namespace_id, shortcode, lookup_date, now,
+                namespace_id, shortcode, click_date, now,
                 country, ip_address, user_agent or 'Unknown', referer or 'Direct'
             ])
             
@@ -103,6 +103,20 @@ class AnalyticsService:
             Dict with analytics data
         """
         try:
+            # Check if ScyllaDB is available and table exists
+            if not self.scylla or not self.scylla.is_connected():
+                logger.warning("ScyllaDB not available, returning basic analytics")
+                return {
+                    'period_days': days,
+                    'total_clicks': 0,
+                    'analytics': {
+                        'clicks_by_country': {},
+                        'clicks_by_date': [],
+                        'recent_clicks': []
+                    },
+                    'message': 'Analytics table not configured. ScyllaDB connection required for detailed analytics.'
+                }
+            
             # Calculate date range based on time filter
             end_date = date.today()
             if time_filter == '1day':
@@ -122,17 +136,33 @@ class AnalyticsService:
             
             # Get analytics data
             query = """
-            SELECT lookup_date, lookup_timestamp, user_agent, ip_address, 
+            SELECT click_date, click_timestamp, user_agent, ip_address, 
                    referer, country
-            FROM url_analytics
+            FROM click_analytics
             WHERE namespace_id = ? AND shortcode = ?
-            AND lookup_date >= ? AND lookup_date <= ?
-            ORDER BY lookup_date DESC, lookup_timestamp DESC
+            AND click_date >= ? AND click_date <= ?
+            ORDER BY click_date DESC, click_timestamp DESC
             """
             
-            results = self.scylla.execute_query(query, [
-                namespace_id, shortcode, start_date, end_date
-            ])
+            try:
+                results = self.scylla.execute_query(query, [
+                    namespace_id, shortcode, start_date, end_date
+                ])
+            except Exception as e:
+                if "unconfigured table" in str(e).lower():
+                    logger.warning("Analytics table not configured: %s", e)
+                    return {
+                        'period_days': days,
+                        'total_clicks': 0,
+                        'analytics': {
+                            'clicks_by_country': {},
+                            'clicks_by_date': [],
+                            'recent_clicks': []
+                        },
+                        'message': 'Analytics table not configured. Please run: python manage.py create_analytics_table'
+                    }
+                else:
+                    raise
             
             # Process analytics data
             analytics = self._process_analytics_data(results)
@@ -246,8 +276,8 @@ class AnalyticsService:
         # Daily clicks
         daily_clicks = {}
         for result in results:
-            lookup_date = result.lookup_date
-            daily_clicks[lookup_date] = daily_clicks.get(lookup_date, 0) + 1
+            click_date = result.click_date
+            daily_clicks[click_date] = daily_clicks.get(click_date, 0) + 1
         
         # Country distribution
         country_dist = {}

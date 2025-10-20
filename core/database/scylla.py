@@ -19,7 +19,7 @@ class ScyllaDBConnection:
     def __init__(self):
         self.cluster = None
         self.session = None
-        self.keyspace = getattr(settings, 'SCYLLA_KEYSPACE', 'hirethon_keyspace')
+        self.keyspace = getattr(settings, 'SCYLLA_KEYSPACE', 'shrtn_keyspace')
         self.table = getattr(settings, 'SCYLLA_TABLE', 'short_urls')
         self._loop = None
         self.is_connected_flag = False

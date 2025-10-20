@@ -2,6 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from config.health import (
     health_check,
@@ -22,15 +23,20 @@ urlpatterns = [
     path("health/ready/", health_ready, name="health-ready"),
     path("health/live/", health_live, name="health-live"),
     
-    # Authentication endpoints
-    path("auth/", include("authentication.urls")),
+    # Authentication endpoints 
+    path("auth/", include("users.auth_urls")),
     
     # API endpoints - Version 1
-    path("api/v1/", include("users.urls")),
-    path("api/v1/", include("organizations.urls")),
+    path("api/v1/users/", include("users.urls")),
+    path("api/v1/organizations/", include("organizations.urls")),
     path("api/v1/", include("namespaces.urls")),
     path("api/v1/", include("urls.urls")),
     path("api/v1/", include("analytics.urls")),
+    
+    # API Documentation
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),

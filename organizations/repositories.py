@@ -92,17 +92,15 @@ class OrganizationRepository(Repository):
             logger.error("Failed to list organizations: %s", e)
             raise
     
-    def add_member(self, org_id: uuid.UUID, user_id: uuid.UUID, permissions: Dict[str, bool]) -> OrganizationMember:
-        """Add member to organization."""
+    def add_member(self, org_id: uuid.UUID, user_id: uuid.UUID, role: str = 'viewer') -> OrganizationMember:
+        """Add member to organization with role."""
         try:
             member = OrganizationMember.objects.create(
                 organization_id=org_id,
                 user_id=user_id,
-                can_view=permissions.get('can_view', False),
-                can_admin=permissions.get('can_admin', False),
-                can_update=permissions.get('can_update', False)
+                role=role
             )
-            logger.info("Added member %s to organization %s", user_id, org_id)
+            logger.info("Added member %s to organization %s with role %s", user_id, org_id, role)
             return member
         except Exception as e:
             logger.error("Failed to add member: %s", e)
@@ -124,6 +122,19 @@ class OrganizationRepository(Repository):
             logger.error("Failed to remove member: %s", e)
             raise
     
+    def get_member_by_user(self, org_id: uuid.UUID, user_id: uuid.UUID) -> Optional[OrganizationMember]:
+        """Get member by user ID in organization."""
+        try:
+            return OrganizationMember.objects.get(
+                organization_id=org_id,
+                user_id=user_id
+            )
+        except OrganizationMember.DoesNotExist:
+            return None
+        except Exception as e:
+            logger.error("Failed to get member by user: %s", e)
+            raise
+    
     def get_members(self, org_id: uuid.UUID) -> List[OrganizationMember]:
         """Get organization members."""
         try:
@@ -132,34 +143,20 @@ class OrganizationRepository(Repository):
             logger.error("Failed to get members: %s", e)
             raise
     
-    def get_user_permissions(self, org_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Dict[str, bool]]:
-        """Get user permissions in organization."""
-        try:
-            member = OrganizationMember.objects.get(
-                organization_id=org_id,
-                user_id=user_id
-            )
-            return {
-                'can_view': member.can_view,
-                'can_admin': member.can_admin,
-                'can_update': member.can_update
-            }
-        except OrganizationMember.DoesNotExist:
-            return None
-        except Exception as e:
-            logger.error("Failed to get user permissions: %s", e)
-            raise
     
     def create_invite(self, data: Dict[str, Any]) -> Invite:
         """Create organization invite."""
         try:
+            # Get the User instance for the inviter
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            inviter_user = User.objects.get(id=data['inviter_user_id'])
+            
             invite = Invite.objects.create(
                 invitee_email=data['invitee_email'],
                 organization_id=data['org_id'],
-                inviter_user_id=data['inviter_user_id'],
-                can_view=data.get('can_view', False),
-                can_admin=data.get('can_admin', False),
-                can_update=data.get('can_update', False),
+                inviter=inviter_user,
+                role=data.get('role', 'viewer'),
                 secret=data['secret'],
                 expires_at=data['expires_at']
             )
@@ -169,61 +166,84 @@ class OrganizationRepository(Repository):
             logger.error("Failed to create invite: %s", e)
             raise
     
-    def get_invite_by_secret(self, secret: str) -> Optional[Invite]:
-        """Get invite by secret token."""
+    def get_invite(self, **filters) -> Optional[Invite]:
+        """Get invite by various filters (secret, invite_id, etc.)."""
         try:
-            return Invite.objects.get(secret=secret)
+            return Invite.objects.get(**filters)
         except Invite.DoesNotExist:
             return None
         except Exception as e:
-            logger.error("Failed to get invite by secret: %s", e)
+            logger.error("Failed to get invite: %s", e)
             raise
     
-    def get_pending_invites(self, org_id: uuid.UUID) -> List[Invite]:
-        """Get pending invites for organization."""
+    def get_invites(self, **filters) -> List[Invite]:
+        """Get invites by various filters."""
         try:
-            return list(Invite.objects.filter(
-                organization_id=org_id,
-                used=False
-            ))
+            return list(Invite.objects.filter(**filters))
         except Exception as e:
-            logger.error("Failed to get pending invites: %s", e)
+            logger.error("Failed to get invites: %s", e)
             raise
     
-    def get_invite_by_id(self, invite_id: uuid.UUID) -> Optional[Invite]:
-        """Get invite by ID."""
-        try:
-            return Invite.objects.get(invite_id=invite_id)
-        except Invite.DoesNotExist:
-            return None
-        except Exception as e:
-            logger.error("Failed to get invite by ID: %s", e)
-            raise
-    
-    def mark_invite_unused(self, invite_id: uuid.UUID) -> bool:
-        """Mark invite as unused (rollback)."""
-        try:
-            invite = self.get_invite_by_id(invite_id)
-            if not invite:
-                return False
-            
-            invite.used = False
-            invite.save()
-            return True
-        except Exception as e:
-            logger.error("Failed to mark invite as unused: %s", e)
-            raise
-    
-    def mark_invite_used(self, invite_id: uuid.UUID) -> bool:
-        """Mark invite as used."""
+    def update_invite_status(self, invite_id: uuid.UUID, used: bool) -> bool:
+        """Update invite usage status."""
         try:
             invite = Invite.objects.get(invite_id=invite_id)
-            invite.used = True
+            invite.used = used
             invite.save()
-            logger.info("Marked invite %s as used", invite_id)
+            status = "used" if used else "unused"
+            logger.info("Marked invite %s as %s", invite_id, status)
             return True
         except Invite.DoesNotExist:
             return False
         except Exception as e:
-            logger.error("Failed to mark invite as used: %s", e)
+            logger.error("Failed to update invite status: %s", e)
+            raise
+    
+    def reject_invite(self, invite_id: uuid.UUID) -> bool:
+        """Reject invite by marking it as used (rejected)."""
+        try:
+            invite = Invite.objects.get(invite_id=invite_id)
+            invite.used = True  # Mark as used to prevent further use
+            invite.save()
+            logger.info("Invite %s rejected by user", invite_id)
+            return True
+        except Invite.DoesNotExist:
+            logger.warning("Invite %s not found for rejection", invite_id)
+            return False
+        except Exception as e:
+            logger.error("Failed to reject invite: %s", e)
+            raise
+    
+    def update_member_role(self, org_id: uuid.UUID, user_id: uuid.UUID, new_role: str) -> bool:
+        """Update member role in organization."""
+        try:
+            member = OrganizationMember.objects.get(
+                organization_id=org_id,
+                user_id=user_id
+            )
+            member.role = new_role
+            member.save()
+            logger.info("Updated member %s role to %s in organization %s", user_id, new_role, org_id)
+            return True
+        except OrganizationMember.DoesNotExist:
+            return False
+        except Exception as e:
+            logger.error("Failed to update member role: %s", e)
+            raise
+    
+    
+    def revoke_invite(self, invite_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Revoke invite (only by the user who sent it)."""
+        try:
+            invite = Invite.objects.get(
+                invite_id=invite_id,
+                inviter=user_id
+            )
+            invite.delete()
+            logger.info("Revoked invite %s by user %s", invite_id, user_id)
+            return True
+        except Invite.DoesNotExist:
+            return False
+        except Exception as e:
+            logger.error("Failed to revoke invite: %s", e)
             raise

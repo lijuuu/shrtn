@@ -28,8 +28,8 @@ class OrganizationAdmin(admin.ModelAdmin):
 class OrganizationMemberAdmin(admin.ModelAdmin):
     """Admin configuration for OrganizationMember model."""
     
-    list_display = ('user', 'organization', 'can_view', 'can_admin', 'can_update', 'joined_at')
-    list_filter = ('can_view', 'can_admin', 'can_update', 'joined_at')
+    list_display = ('user', 'organization', 'role', 'joined_at')
+    list_filter = ('role', 'joined_at')
     search_fields = ('user__email', 'user__name', 'organization__name')
     readonly_fields = ('joined_at',)
 
@@ -39,7 +39,7 @@ class InviteAdmin(admin.ModelAdmin):
     """Admin configuration for Invite model."""
     
     list_display = ('invitee_email', 'organization', 'inviter', 'used', 'expires_at', 'created_at')
-    list_filter = ('used', 'can_view', 'can_admin', 'can_update', 'created_at', 'expires_at')
+    list_filter = ('used', 'created_at', 'expires_at')
     search_fields = ('invitee_email', 'organization__name', 'inviter__email')
     readonly_fields = ('secret', 'created_at')
 

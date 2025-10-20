@@ -55,7 +55,12 @@ def require_organization_permission(permission: str, org_id_param: str = 'org_id
                 organization_service = service_registry.get_organization_service()
                 user_permissions = organization_service.get_user_permissions(org_id, request.user.id)
                 
+                logger.info("Permission check - User ID: %s, Org ID: %s, Required permission: %s", 
+                           request.user.id, org_id, permission)
+                logger.info("User permissions: %s", user_permissions)
+                
                 if not user_permissions:
+                    logger.warning("No permissions found for user %s in org %s", request.user.id, org_id)
                     return JsonResponse({
                         'message': 'You are not a member of this organization',
                         'status_code': 403,
@@ -64,7 +69,12 @@ def require_organization_permission(permission: str, org_id_param: str = 'org_id
                     }, status=403)
                 
                 # Check specific permission
-                if not user_permissions.get(permission, False):
+                has_permission = user_permissions.get(permission, False)
+                logger.info("Permission check result - %s: %s", permission, has_permission)
+                
+                if not has_permission:
+                    logger.warning("Insufficient permissions for user %s in org %s. Required: %s, Available: %s", 
+                                 request.user.id, org_id, permission, user_permissions)
                     return JsonResponse({
                         'message': f'Insufficient permissions. Required: {permission}',
                         'status_code': 403,

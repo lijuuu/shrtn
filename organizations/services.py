@@ -25,7 +25,7 @@ class OrganizationService(Service):
     def create(self, data: Dict[str, Any]) -> Organization:
         """Create organization with business logic validation."""
         name = data.get('name', '')
-        owner_id = data.get('owner_id')
+        owner_id = data.get('owner_id') or data.get('owner')  # Support both field names
         
         # Basic validation
         if not name or len(name.strip()) < 2:
@@ -46,11 +46,8 @@ class OrganizationService(Service):
         })
         
         # Auto-add owner as admin member
-        self.repository.add_member(organization.org_id, owner_id, {
-            'can_view': True,
-            'can_admin': True,
-            'can_update': True
-        })
+        # Add owner as member with admin role
+        self.repository.add_member(organization.org_id, owner_id, 'admin')
         
         return organization
 
@@ -119,20 +116,25 @@ class OrganizationService(Service):
         """Get organizations where user is a member."""
         return self.repository.list({'user_id': user_id})
 
-    def add_member(self, org_id: uuid.UUID, user_id: uuid.UUID, permissions: Dict[str, bool]) -> OrganizationMember:
-        """Add member to organization with validation."""
+    def add_member(self, org_id: uuid.UUID, user_id: uuid.UUID, role: str = 'viewer') -> OrganizationMember:
+        """Add member to organization with role."""
         if not org_id:
             raise ValidationError("Invalid organization ID")
         
         if not user_id:
             raise ValidationError("Invalid user ID")
         
+        # Validate role
+        valid_roles = ['viewer', 'editor', 'admin']
+        if role not in valid_roles:
+            raise ValidationError(f"Invalid role. Must be one of: {valid_roles}")
+        
         # Check if user is already a member
-        existing_permissions = self.repository.get_user_permissions(org_id, user_id)
-        if existing_permissions:
+        existing_member = self.repository.get_member_by_user(org_id, user_id)
+        if existing_member:
             raise ValidationError("User is already a member of this organization")
         
-        return self.repository.add_member(org_id, user_id, permissions)
+        return self.repository.add_member(org_id, user_id, role)
 
     def remove_member(self, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Remove member from organization."""
@@ -159,7 +161,57 @@ class OrganizationService(Service):
         if not user_id:
             raise ValidationError("Invalid user ID")
         
-        return self.repository.get_user_permissions(org_id, user_id)
+        member = self.repository.get_member_by_user(org_id, user_id)
+        if member:
+            # Convert role to permission flags for backward compatibility
+            role = member.role
+            return {
+                'role': role,
+                'can_view': role in ['viewer', 'editor', 'admin'],
+                'can_update': role in ['editor', 'admin'],
+                'can_admin': role == 'admin'
+            }
+        return None
+    
+    def get_member_by_user(self, org_id: uuid.UUID, user_id: uuid.UUID) -> Optional[OrganizationMember]:
+        """Get member by user ID in organization."""
+        if not org_id:
+            raise ValidationError("Invalid organization ID")
+        
+        if not user_id:
+            raise ValidationError("Invalid user ID")
+        
+        return self.repository.get_member_by_user(org_id, user_id)
+    
+    def update_member_role(self, org_id: uuid.UUID, user_id: uuid.UUID, new_role: str) -> bool:
+        """Update member role in organization."""
+        if not org_id:
+            raise ValidationError("Invalid organization ID")
+        
+        if not user_id:
+            raise ValidationError("Invalid user ID")
+        
+        # Validate role
+        valid_roles = ['viewer', 'editor', 'admin']
+        if new_role not in valid_roles:
+            raise ValidationError(f"Invalid role. Must be one of: {valid_roles}")
+        
+        return self.repository.update_member_role(org_id, user_id, new_role)
+    
+    def has_admin_permission(self, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Check if user has admin permission in organization."""
+        member = self.get_member_by_user(org_id, user_id)
+        return member and member.role == 'admin'
+    
+    def has_edit_permission(self, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Check if user has edit permission in organization."""
+        member = self.get_member_by_user(org_id, user_id)
+        return member and member.role in ['editor', 'admin']
+    
+    def has_view_permission(self, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Check if user has view permission in organization."""
+        member = self.get_member_by_user(org_id, user_id)
+        return member and member.role in ['viewer', 'editor', 'admin']
 
     def create_invite(self, data: Dict[str, Any]) -> Invite:
         """Create organization invite with validation and email sending."""
@@ -167,10 +219,14 @@ class OrganizationService(Service):
         org_id = data.get('org_id')
         inviter_user_id = data.get('inviter_user_id')
         
+        logger.info("Creating invite - Email: %s, Org ID: %s, Inviter: %s", 
+                   invitee_email, org_id, inviter_user_id)
+        
         if not invitee_email or '@' not in invitee_email:
             raise ValidationError("Invalid email format")
         
         if not org_id:
+            logger.error("Invalid organization ID: %s", org_id)
             raise ValidationError("Invalid organization ID")
         
         if not inviter_user_id:
@@ -205,18 +261,16 @@ class OrganizationService(Service):
             'invitee_email': invitee_email.lower().strip(),
             'org_id': org_id,
             'inviter_user_id': inviter_user_id,
-            'can_view': data.get('can_view', False),
-            'can_admin': data.get('can_admin', False),
-            'can_update': data.get('can_update', False),
+            'role': data.get('role', 'viewer'),
             'secret': secret,
             'expires_at': expires_at
         })
         
         # Send email invitation
         try:
-            from core.dependencies.service_registry import service_registry
+            from core.utils.view_helpers import get_service
             
-            email_service = service_registry.get_email_service()
+            email_service = get_service('email')
             if not email_service:
                 logger.warning("Email service not available, skipping email send")
                 return invite
@@ -253,14 +307,14 @@ class OrganizationService(Service):
         if not secret:
             raise ValidationError("Secret token is required")
         
-        return self.repository.get_invite_by_secret(secret)
+        return self.repository.get_invite(secret=secret)
 
     def get_pending_invites(self, org_id: uuid.UUID) -> List[Invite]:
         """Get pending invites for organization."""
         if not org_id:
             raise ValidationError("Invalid organization ID")
         
-        return self.repository.get_pending_invites(org_id)
+        return self.repository.get_invites(organization_id=org_id, used=False)
 
     def accept_invite(self, invite_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Accept organization invite."""
@@ -272,38 +326,32 @@ class OrganizationService(Service):
         
         try:
             # Get invite details first
-            invite = self.repository.get_invite_by_id(invite_id)
+            invite = self.repository.get_invite(invite_id=invite_id)
             if not invite:
                 raise ValidationError("Invite not found")
             
             if invite.used:
                 raise ValidationError("Invite has already been used")
             
-            if invite.expires_at and invite.expires_at < datetime.now():
-                raise ValidationError("Invite has expired")
             
             # Check if user is already a member
-            existing_permissions = self.repository.get_user_permissions(invite.organization_id, user_id)
-            if existing_permissions:
+            existing_member = self.repository.get_member_by_user(invite.organization_id, user_id)
+            if existing_member:
                 raise ValidationError("User is already a member of this organization")
             
             # Mark invite as used
-            success = self.repository.mark_invite_used(invite_id)
+            success = self.repository.update_invite_status(invite_id, used=True)
             if not success:
                 return False
             
-            # Add user to organization with default permissions
-            default_permissions = {
-                'can_view': True,
-                'can_update': False,  # Can be customized based on invite type
-                'can_admin': False
-            }
+            # Add user to organization with role from invite
+            role = getattr(invite, 'role', 'viewer')  # Default to viewer if no role specified
             
             # Add member to organization
-            member = self.repository.add_member(invite.organization_id, user_id, default_permissions)
+            member = self.repository.add_member(invite.organization_id, user_id, role)
             if not member:
                 # Rollback invite usage if member addition fails
-                self.repository.mark_invite_unused(invite_id)
+                self.repository.update_invite_status(invite_id, used=False)
                 return False
             
             logger.info("User %s accepted invite and joined organization %s", user_id, invite.organization_id)
@@ -312,3 +360,34 @@ class OrganizationService(Service):
         except Exception as e:
             logger.error("Failed to accept invite: %s", e)
             raise
+    
+    def get_sent_invites(self, user_id: uuid.UUID) -> List[Invite]:
+        """Get invites sent by user."""
+        if not user_id:
+            raise ValidationError("Invalid user ID")
+        
+        return self.repository.get_invites(inviter=user_id)
+    
+    def get_received_invites(self, email: str) -> List[Invite]:
+        """Get invites received by email."""
+        if not email or '@' not in email:
+            raise ValidationError("Invalid email format")
+        
+        return self.repository.get_invites(invitee_email=email.lower(), used=False)
+    
+    def revoke_invite(self, invite_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        """Revoke invite (only by the user who sent it)."""
+        if not invite_id:
+            raise ValidationError("Invalid invite ID")
+        
+        if not user_id:
+            raise ValidationError("Invalid user ID")
+        
+        return self.repository.revoke_invite(invite_id, user_id)
+    
+    def reject_invite(self, invite_id: uuid.UUID) -> bool:
+        """Reject invite by the invitee."""
+        if not invite_id:
+            raise ValidationError("Invalid invite ID")
+        
+        return self.repository.reject_invite(invite_id)

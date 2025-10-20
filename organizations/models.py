@@ -35,6 +35,14 @@ class OrganizationMember(models.Model):
     """
     Organization membership model for managing user permissions.
     """
+    
+    # Role choices
+    ROLE_CHOICES = [
+        ('viewer', _('Viewer')),
+        ('editor', _('Editor')),
+        ('admin', _('Admin')),
+    ]
+    
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -47,9 +55,13 @@ class OrganizationMember(models.Model):
         related_name='organization_memberships',
         db_column='userId'
     )
-    can_view = models.BooleanField(_("Can View"), default=False)
-    can_admin = models.BooleanField(_("Can Admin"), default=False)
-    can_update = models.BooleanField(_("Can Update"), default=False)
+    role = models.CharField(
+        _("Role"),
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='viewer',
+        help_text=_("User's role in the organization")
+    )
     joined_at = models.DateTimeField(_("Joined At"), auto_now_add=True)
 
     class Meta:
@@ -60,6 +72,34 @@ class OrganizationMember(models.Model):
 
     def __str__(self):
         return f"{self.user.email} in {self.organization.name}"
+    
+    def is_admin(self) -> bool:
+        """Check if user has admin role."""
+        return self.role == 'admin'
+    
+    def is_editor(self) -> bool:
+        """Check if user has editor role."""
+        return self.role == 'editor'
+    
+    def is_viewer(self) -> bool:
+        """Check if user has viewer role."""
+        return self.role == 'viewer'
+    
+    def can_view(self) -> bool:
+        """Check if user can view organization content."""
+        return self.role in ['viewer', 'editor', 'admin']
+    
+    def can_edit(self) -> bool:
+        """Check if user can edit organization content."""
+        return self.role in ['editor', 'admin']
+    
+    def can_admin(self) -> bool:
+        """Check if user can admin organization."""
+        return self.role == 'admin'
+    
+    def can_delete(self) -> bool:
+        """Check if user can delete organization content."""
+        return self.role == 'admin'
 
 
 class Invite(models.Model):
@@ -80,9 +120,17 @@ class Invite(models.Model):
         related_name='sent_invites',
         db_column='inviter_userId'
     )
-    can_view = models.BooleanField(_("Can View"), default=False)
-    can_admin = models.BooleanField(_("Can Admin"), default=False)
-    can_update = models.BooleanField(_("Can Update"), default=False)
+    role = models.CharField(
+        _("Role"),
+        max_length=20,
+        choices=[
+            ('viewer', _('Viewer')),
+            ('editor', _('Editor')),
+            ('admin', _('Admin')),
+        ],
+        default='viewer',
+        help_text=_("Role the invitee will have in the organization")
+    )
     used = models.BooleanField(_("Used"), default=False)
     secret = models.CharField(_("Secret"), max_length=255, unique=True)
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)

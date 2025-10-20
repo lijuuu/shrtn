@@ -16,8 +16,9 @@ class User(AbstractUser):
     username = models.CharField(_("username"), max_length=150, unique=True, default="")
     email = models.EmailField(_("email address"), unique=True)
     name = models.CharField(_("Full Name"), max_length=255, blank=True)
-    verified = models.BooleanField(_("Email Verified"), default=False)
+    verified = models.BooleanField(_("Email Verified"), default=True) #to skip verification for now
     password_hash = models.CharField(_("Password Hash"), max_length=255, blank=True)
+    google_id = models.CharField(_("Google ID"), max_length=255, blank=True, null=True, unique=True)
     
     # Timestamps
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)

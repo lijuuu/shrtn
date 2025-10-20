@@ -2,34 +2,37 @@
 -- This script runs when the ScyllaDB container starts
 
 -- Create keyspace with proper configuration
-CREATE KEYSPACE IF NOT EXISTS hirethon_keyspace 
+CREATE KEYSPACE IF NOT EXISTS shrtn_keyspace 
 WITH REPLICATION = {
     'class': 'SimpleStrategy',
     'replication_factor': 1
 };
 
 -- Use the keyspace
-USE hirethon_keyspace;
+USE shrtn_keyspace;
 
 -- Create short_urls table with proper sharding
 CREATE TABLE IF NOT EXISTS short_urls (
-    namespace_id INT,
+    namespace_id UUID,
     shortcode TEXT,
     id UUID,
     created_at TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id UUID,
     original_url TEXT,
+    title TEXT,
+    description TEXT,
     expiry TIMESTAMP,
     click_count INT,
     updated_at TIMESTAMP,
     is_private BOOLEAN,
+    is_active BOOLEAN,
     tags SET<TEXT>,
     PRIMARY KEY ((namespace_id, shortcode), id, created_at)
 ) WITH CLUSTERING ORDER BY (id ASC, created_at DESC);
 
 -- Create click analytics table
 CREATE TABLE IF NOT EXISTS click_analytics (
-    namespace_id INT,
+    namespace_id UUID,
     shortcode TEXT,
     click_date DATE,
     click_timestamp TIMESTAMP,
@@ -55,7 +58,7 @@ CREATE TABLE IF NOT EXISTS bulk_upload_mappings (
 
 -- Create namespace statistics table
 CREATE TABLE IF NOT EXISTS namespace_stats (
-    namespace_id INT,
+    namespace_id UUID,
     total_urls INT,
     total_clicks INT,
     active_urls INT,

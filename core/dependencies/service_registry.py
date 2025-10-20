@@ -38,8 +38,6 @@ class ServiceRegistry:
             #initialize namespace service (postgresql only)
             self._initialize_namespace_service(postgres)
             
-            #initialize url cache service (redis)
-            self._initialize_url_cache_service(redis)
             
             #initialize email service (optional)
             self._initialize_email_service()
@@ -105,17 +103,6 @@ class ServiceRegistry:
             logger.error("failed to initialize namespace service: %s", e)
             raise
     
-    def _initialize_url_cache_service(self, redis) -> None:
-        """initialize url cache service."""
-        try:
-            from core.redis.url_cache import UrlCacheService
-            
-            self._services['url_cache'] = UrlCacheService(redis)
-            logger.info("url cache service initialized")
-            
-        except Exception as e:
-            logger.error("failed to initialize url cache service: %s", e)
-            raise
     
     def _initialize_url_service(self, scylla) -> None:
         """initialize url service."""
@@ -124,10 +111,8 @@ class ServiceRegistry:
             from urls.repositories import UrlRepository
             
             url_repository = UrlRepository(scylla)
-            # Get cache service if available
-            cache_service = self._services.get('url_cache')
-            self._services['url'] = UrlService(url_repository, cache_service)
-            logger.info("url service initialized with cache support")
+            self._services['url'] = UrlService(url_repository)
+            logger.info("url service initialized")
             
         except Exception as e:
             logger.error("failed to initialize url service: %s", e)
@@ -175,11 +160,6 @@ class ServiceRegistry:
             self.initialize_all_services()
         return self._services['namespace']
     
-    def get_url_cache_service(self):
-        """get url cache service."""
-        if not self._initialized:
-            self.initialize_all_services()
-        return self._services['url_cache']
     
     def get_email_service(self):
         """get email service."""

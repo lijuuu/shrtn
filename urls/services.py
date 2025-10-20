@@ -1,7 +1,8 @@
 """
-URL service for business logic with redis caching.
+URL service for business logic.
 """
 import logging
+import uuid
 from typing import List, Optional, Dict, Any
 from core.database.base import Service
 from core.utils.shortcode_generator import ShortcodeGenerator
@@ -14,10 +15,9 @@ logger = logging.getLogger(__name__)
 class UrlService(Service):
     """Service for URL business logic with caching."""
     
-    def __init__(self, repository: UrlRepository, cache_service=None):
+    def __init__(self, repository: UrlRepository):
         super().__init__(repository)
         self.repository = repository
-        self.cache_service = cache_service
         self.shortcode_generator = ShortcodeGenerator()
     
     def create(self, data: Dict[str, Any]) -> ShortUrl:
@@ -63,23 +63,6 @@ class UrlService(Service):
             # Create the short URL
             short_url = self.repository.create(data)
             
-            # Cache the new URL if cache service is available
-            if self.cache_service:
-                try:
-                    url_data = short_url.to_dict()
-                    self.cache_service.cache_url(
-                        data['namespace_id'], 
-                        data['shortcode'], 
-                        url_data
-                    )
-                    # Also cache the resolution for fast redirects
-                    self.cache_service.cache_url_resolution(
-                        data['namespace_id'], 
-                        data['shortcode'], 
-                        data['original_url']
-                    )
-                except Exception as cache_error:
-                    logger.warning("failed to cache new url: %s", cache_error)
             
             return short_url
             
@@ -88,33 +71,9 @@ class UrlService(Service):
             raise
     
     def get_by_id(self, id: tuple) -> Optional[ShortUrl]:
-        """Get short URL by ID with caching."""
+        """Get short URL by ID."""
         try:
-            namespace_id, shortcode = id
-            
-            # Try cache first if available
-            if self.cache_service:
-                try:
-                    cached_data = self.cache_service.get_cached_url(namespace_id, shortcode)
-                    if cached_data:
-                        # Convert cached data back to ShortUrl object
-                        from .models import ShortUrl
-                        return ShortUrl.from_dict(cached_data)
-                except Exception as cache_error:
-                    logger.warning("cache read error: %s", cache_error)
-            
-            # Fallback to database
-            short_url = self.repository.get_by_id(id)
-            
-            # Cache the result if found
-            if short_url and self.cache_service:
-                try:
-                    url_data = short_url.to_dict()
-                    self.cache_service.cache_url(namespace_id, shortcode, url_data)
-                except Exception as cache_error:
-                    logger.warning("failed to cache url: %s", cache_error)
-            
-            return short_url
+            return self.repository.get_by_id(id)
             
         except Exception as e:
             logger.error("Failed to get short URL: %s", e)
@@ -129,48 +88,18 @@ class UrlService(Service):
             raise
     
     def update(self, id: tuple, data: Dict[str, Any]) -> Optional[ShortUrl]:
-        """Update short URL with cache invalidation."""
+        """Update short URL."""
         try:
-            namespace_id, shortcode = id
-            updated_url = self.repository.update(id, data)
-            
-            # Invalidate cache if update was successful
-            if updated_url and self.cache_service:
-                try:
-                    self.cache_service.invalidate_url(namespace_id, shortcode)
-                    self.cache_service.invalidate_resolution(namespace_id, shortcode)
-                    
-                    # Re-cache the updated URL
-                    url_data = updated_url.to_dict()
-                    self.cache_service.cache_url(namespace_id, shortcode, url_data)
-                    if 'original_url' in data:
-                        self.cache_service.cache_url_resolution(
-                            namespace_id, shortcode, data['original_url']
-                        )
-                except Exception as cache_error:
-                    logger.warning("failed to update cache: %s", cache_error)
-            
-            return updated_url
+            return self.repository.update(id, data)
             
         except Exception as e:
             logger.error("Failed to update short URL: %s", e)
             raise
     
     def delete(self, id: tuple) -> bool:
-        """Delete short URL with cache invalidation."""
+        """Delete short URL."""
         try:
-            namespace_id, shortcode = id
-            success = self.repository.delete(id)
-            
-            # Invalidate cache if deletion was successful
-            if success and self.cache_service:
-                try:
-                    self.cache_service.invalidate_url(namespace_id, shortcode)
-                    self.cache_service.invalidate_resolution(namespace_id, shortcode)
-                except Exception as cache_error:
-                    logger.warning("failed to invalidate cache: %s", cache_error)
-            
-            return success
+            return self.repository.delete(id)
             
         except Exception as e:
             logger.error("Failed to delete short URL: %s", e)
@@ -184,22 +113,9 @@ class UrlService(Service):
             logger.error("Failed to list short URLs: %s", e)
             raise
     
-    def resolve_url(self, namespace_id: int, shortcode: str, request_meta: Optional[Dict[str, str]] = None) -> Optional[str]:
-        """Resolve short URL to original URL with caching, hot url tracking, and analytics."""
+    def resolve_url(self, namespace_id: str, shortcode: str, request_meta: Optional[Dict[str, str]] = None) -> Optional[str]:
+        """Resolve short URL to original URL with analytics."""
         try:
-            # Try cache first for fast resolution
-            if self.cache_service:
-                try:
-                    cached_url = self.cache_service.get_cached_resolution(namespace_id, shortcode)
-                    if cached_url:
-                        # Track as hot URL
-                        self.cache_service.track_hot_url(namespace_id, shortcode)
-                        logger.debug("cache hit for url resolution: %s:%s", namespace_id, shortcode)
-                        return cached_url
-                except Exception as cache_error:
-                    logger.warning("cache read error during resolution: %s", cache_error)
-            
-            # Fallback to database
             short_url = self.repository.get_by_id((namespace_id, shortcode))
             if short_url:
                 # Increment click count
@@ -221,17 +137,6 @@ class UrlService(Service):
                     except Exception as analytics_error:
                         logger.warning("failed to track analytics: %s", analytics_error)
                 
-                # Cache the resolution for future requests
-                if self.cache_service:
-                    try:
-                        self.cache_service.cache_url_resolution(
-                            namespace_id, shortcode, short_url.original_url
-                        )
-                        # Track as hot URL
-                        self.cache_service.track_hot_url(namespace_id, shortcode)
-                    except Exception as cache_error:
-                        logger.warning("failed to cache resolution: %s", cache_error)
-                
                 return short_url.original_url
             
             return None
@@ -239,6 +144,43 @@ class UrlService(Service):
         except Exception as e:
             logger.error("Failed to resolve URL: %s", e)
             raise
+    
+    def resolve_url_with_details(self, namespace_id: int, shortcode: str, request_meta: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
+        """Resolve short URL to original URL with detailed information for redirects."""
+        try:
+            short_url = self.repository.get_by_id((namespace_id, shortcode))
+            if short_url:
+                # Increment click count
+                self.repository.increment_click_count(namespace_id, shortcode)
+                
+                # Track analytics if request metadata is available
+                if request_meta:
+                    try:
+                        from core.dependencies.service_registry import service_registry
+                        analytics_service = service_registry.get_analytics_service()
+                        if analytics_service:
+                            analytics_service.track_click(
+                                namespace_id=namespace_id,
+                                shortcode=shortcode,
+                                ip_address=request_meta.get('ip_address', ''),
+                                user_agent=request_meta.get('user_agent', ''),
+                                referer=request_meta.get('referer', ''),
+                                timestamp=request_meta.get('timestamp', '')
+                            )
+                    except Exception as analytics_error:
+                        logger.warning("failed to track analytics: %s", analytics_error)
+                
+                return {
+                    'url': short_url.original_url,
+                    'redirect_type': getattr(short_url, 'redirect_type', 'temporary'),
+                    'is_active': getattr(short_url, 'is_active', True),
+                    'expires_at': getattr(short_url, 'expires_at', None)
+                }
+            
+            return None
+        except Exception as e:
+            logger.error("Failed to resolve URL with details: %s", e)
+            return None
     
     def increment_click_count(self, namespace_id: int, shortcode: str) -> bool:
         """Increment click count for a short URL."""
@@ -277,35 +219,8 @@ class UrlService(Service):
             logger.error("Failed to get URLs by namespace: %s", e)
             raise
     
-    def get_hot_urls(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get list of hot URLs (most accessed)."""
-        try:
-            if self.cache_service:
-                return self.cache_service.get_hot_urls(limit)
-            return []
-        except Exception as e:
-            logger.error("Failed to get hot URLs: %s", e)
-            return []
     
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """Get cache statistics."""
-        try:
-            if self.cache_service:
-                return self.cache_service.get_cache_stats()
-            return {'error': 'cache service not available'}
-        except Exception as e:
-            logger.error("Failed to get cache stats: %s", e)
-            return {'error': str(e)}
     
-    def clear_cache(self) -> bool:
-        """Clear all URL cache."""
-        try:
-            if self.cache_service:
-                return self.cache_service.clear_all_cache()
-            return False
-        except Exception as e:
-            logger.error("Failed to clear cache: %s", e)
-            return False
     
     def _is_valid_shortcode(self, shortcode: str) -> bool:
         """Validate shortcode format."""
@@ -342,18 +257,6 @@ class UrlService(Service):
             # Use repository method to migrate URLs in ScyllaDB
             success = self.repository.migrate_namespace_name(old_namespace_name, new_namespace_name)
             
-            if success and self.cache_service:
-                # Clear cache for all URLs in the old namespace
-                try:
-                    # Get all URLs in the old namespace to clear their cache
-                    old_urls = self.get_by_namespace_name(old_namespace_name)
-                    for url in old_urls:
-                        self.cache_service.invalidate_url(url.namespace_id, url.shortcode)
-                        self.cache_service.invalidate_resolution(url.namespace_id, url.shortcode)
-                    
-                    logger.info("Cleared cache for migrated URLs from namespace %s", old_namespace_name)
-                except Exception as cache_error:
-                    logger.warning("Failed to clear cache during namespace migration: %s", cache_error)
             
             return success
             

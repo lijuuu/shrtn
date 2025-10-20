@@ -4,23 +4,19 @@ Enhanced namespace serializers with permission context for frontend integration.
 from rest_framework import serializers
 from .models import Namespace
 from core.dependencies.service_registry import service_registry
+from core.serializers.base import BaseModelSerializer, BaseCreateSerializer, BaseUpdateSerializer, PermissionSerializerMixin
 
-class NamespaceSerializer(serializers.ModelSerializer):
+class NamespaceSerializer(BaseModelSerializer):
     """Basic namespace serializer."""
     
     class Meta:
         model = Namespace
         fields = [
-            'namespace_id', 'name', 'description', 'organization_id',
-            'created_by_id', 'created_at', 'updated_at'
+            'namespace_id', 'name', 'organization', 'created_by', 'created_at'
         ]
 
-class NamespaceWithPermissionsSerializer(serializers.ModelSerializer):
+class NamespaceWithPermissionsSerializer(PermissionSerializerMixin, BaseModelSerializer):
     """Enhanced namespace serializer with user permissions."""
-    
-    # User's permissions in this namespace's organization
-    user_permissions = serializers.SerializerMethodField()
-    user_role = serializers.SerializerMethodField()
     organization_name = serializers.CharField(source='organization.name', read_only=True)
     creator_username = serializers.CharField(source='created_by.username', read_only=True)
     url_count = serializers.SerializerMethodField()
@@ -68,12 +64,12 @@ class NamespaceWithPermissionsSerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
-class NamespaceCreateSerializer(serializers.ModelSerializer):
+class NamespaceCreateSerializer(BaseCreateSerializer):
     """Serializer for creating namespaces."""
     
     class Meta:
         model = Namespace
-        fields = ['name', 'description']
+        fields = ['name']
     
     def validate_name(self, value):
         """Validate namespace name."""
@@ -90,12 +86,12 @@ class NamespaceCreateSerializer(serializers.ModelSerializer):
         
         return value.strip().lower()
 
-class NamespaceUpdateSerializer(serializers.ModelSerializer):
+class NamespaceUpdateSerializer(BaseUpdateSerializer):
     """Serializer for updating namespaces."""
     
     class Meta:
         model = Namespace
-        fields = ['name', 'description']
+        fields = ['name']
     
     def validate_name(self, value):
         """Validate namespace name."""

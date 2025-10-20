@@ -6,21 +6,59 @@ from .models import ShortUrl
 from core.dependencies.service_registry import service_registry
 from datetime import datetime
 
-class ShortUrlSerializer(serializers.ModelSerializer):
+class ShortUrlSerializer(serializers.Serializer):
     """Basic short URL serializer."""
     
-    class Meta:
-        model = ShortUrl
-        fields = [
-            'namespace_id', 'shortcode', 'original_url', 'title', 'description',
-            'created_by_user_id', 'created_at', 'updated_at', 'expires_at',
-            'click_count', 'is_active'
-        ]
+    namespace_id = serializers.UUIDField()
+    shortcode = serializers.CharField()
+    original_url = serializers.URLField()
+    title = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    created_by_user_id = serializers.UUIDField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    expires_at = serializers.SerializerMethodField()
+    click_count = serializers.IntegerField()
+    is_active = serializers.BooleanField(required=False, default=True)
+    is_private = serializers.BooleanField(required=False, default=False)
+    tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    
+    def get_expires_at(self, obj):
+        """Get expires_at from expiry field."""
+        return obj.expiry
+    
+    def to_representation(self, instance):
+        """Override to add debug logging."""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("Serializing ShortUrl: namespace_id=%s, shortcode=%s", instance.namespace_id, instance.shortcode)
+        try:
+            result = super().to_representation(instance)
+            logger.info("Serialization successful")
+            return result
+        except Exception as e:
+            logger.error("Serialization failed: %s", e)
+            raise
 
-class ShortUrlWithPermissionsSerializer(serializers.ModelSerializer):
+class ShortUrlWithPermissionsSerializer(serializers.Serializer):
     """Enhanced short URL serializer with user permissions."""
     
-    # User's permissions in this URL's namespace organization
+    # Basic fields
+    namespace_id = serializers.UUIDField()
+    shortcode = serializers.CharField()
+    original_url = serializers.URLField()
+    title = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    created_by_user_id = serializers.UUIDField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    expires_at = serializers.SerializerMethodField()
+    click_count = serializers.IntegerField()
+    is_active = serializers.BooleanField(required=False, default=True)
+    is_private = serializers.BooleanField(required=False, default=False)
+    tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    
+    # Enhanced fields
     user_permissions = serializers.SerializerMethodField()
     user_role = serializers.SerializerMethodField()
     namespace_name = serializers.SerializerMethodField()
@@ -28,16 +66,6 @@ class ShortUrlWithPermissionsSerializer(serializers.ModelSerializer):
     short_url = serializers.SerializerMethodField()
     expires_at_formatted = serializers.SerializerMethodField()
     created_at_formatted = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = ShortUrl
-        fields = [
-            'namespace_id', 'shortcode', 'original_url', 'title', 'description',
-            'created_by_user_id', 'created_at', 'created_at_formatted', 'updated_at', 
-            'expires_at', 'expires_at_formatted', 'click_count', 'is_active',
-            'user_permissions', 'user_role', 'namespace_name', 'organization_name',
-            'short_url'
-        ]
     
     def get_user_permissions(self, obj):
         """Get current user's permissions in this URL's namespace organization."""
@@ -116,14 +144,16 @@ class ShortUrlWithPermissionsSerializer(serializers.ModelSerializer):
             return obj.created_at.strftime('%Y-%m-%d %H:%M:%S')
         return None
 
-class ShortUrlCreateSerializer(serializers.ModelSerializer):
+class ShortUrlCreateSerializer(serializers.Serializer):
     """Serializer for creating short URLs."""
     
-    class Meta:
-        model = ShortUrl
-        fields = [
-            'original_url', 'title', 'description', 'shortcode', 'expires_at'
-        ]
+    original_url = serializers.URLField()
+    title = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    shortcode = serializers.CharField(required=False, allow_blank=True)
+    expires_at = serializers.SerializerMethodField()
+    namespace_id = serializers.UUIDField(required=False)  # Will be set by the view
+    created_by_user_id = serializers.UUIDField(required=False)  # Will be set by the view
     
     def validate_original_url(self, value):
         """Validate original URL."""

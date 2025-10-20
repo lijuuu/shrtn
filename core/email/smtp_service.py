@@ -248,7 +248,7 @@ class SMTPEmailService:
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🔗 ShortURL</div>
+                    <div class="logo">🔗 shrtn </div>
                     <h1 class="title">You're Invited!</h1>
                 </div>
                 
@@ -257,7 +257,7 @@ class SMTPEmailService:
                     
                     <p><strong>{{ inviter_name }}</strong> has invited you to join the organization <strong>{{ organization_name }}</strong> on ShortURL.</p>
                     
-                    <p>ShortURL is a powerful URL shortening service that helps organizations manage and track their links efficiently.</p>
+                    <p>shrtn is a powerful URL shortening service that helps organizations manage and track their links efficiently.</p>
                     
                     <div class="details">
                         <h3>What you'll get:</h3>
@@ -284,7 +284,7 @@ class SMTPEmailService:
                 <div class="footer">
                     <p>This invitation was sent to {{ invitee_email }}</p>
                     <p>If you didn't expect this invitation, you can safely ignore this email.</p>
-                    <p>&copy; 2024 ShortURL. All rights reserved.</p>
+                    <p>&copy; 2024 shrtn. All rights reserved.</p>
                 </div>
             </div>
         </body>
@@ -317,9 +317,9 @@ You're Invited to Join {organization_name}!
 
 Hello!
 
-{inviter_name} has invited you to join the organization {organization_name} on ShortURL.
+{inviter_name} has invited you to join the organization {organization_name} on shrtn.
 
-ShortURL is a powerful URL shortening service that helps organizations manage and track their links efficiently.
+shrtn is a powerful URL shortening service that helps organizations manage and track their links efficiently.
 
 What you'll get:
 - Create and manage short URLs
@@ -340,7 +340,7 @@ If the link doesn't work, you can copy and paste it into your browser.
 
 This invitation was sent to you. If you didn't expect this invitation, you can safely ignore this email.
 
-© 2024 ShortURL. All rights reserved.
+© 2024 shrtn. All rights reserved.
 """
         
         return text_content

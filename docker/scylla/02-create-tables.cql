@@ -6,16 +6,19 @@ USE ${SCYLLA_KEYSPACE};
 
 -- Create short_urls table with composite partition key
 CREATE TABLE IF NOT EXISTS short_urls (
-    namespace_id INT,
+    namespace_id UUID,
     shortcode TEXT,
     id UUID,
     created_at TIMESTAMP,
-    created_by_user_id INT,
+    created_by_user_id UUID,
     original_url TEXT,
+    title TEXT,
+    description TEXT,
     expiry TIMESTAMP,
     click_count INT,
     updated_at TIMESTAMP,
     is_private BOOLEAN,
+    is_active BOOLEAN,
     tags SET<TEXT>,
     PRIMARY KEY ((namespace_id, shortcode), id, created_at)
 ) WITH CLUSTERING ORDER BY (id ASC, created_at DESC)
@@ -32,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_short_urls_is_private ON short_urls (is_private);
 
 -- Create simple analytics table for URL tracking
 CREATE TABLE IF NOT EXISTS url_analytics (
-    namespace_id INT,
+    namespace_id UUID,
     shortcode TEXT,
     lookup_date DATE,
     lookup_timestamp TIMESTAMP,
@@ -48,25 +51,3 @@ AND compression = {'sstable_compression': 'LZ4Compressor'};
 CREATE INDEX IF NOT EXISTS idx_url_analytics_country ON url_analytics (country);
 CREATE INDEX IF NOT EXISTS idx_url_analytics_date ON url_analytics (lookup_date);
 
--- Create a table for bulk upload tracking
-CREATE TABLE IF NOT EXISTS bulk_upload_mappings (
-    bulk_upload_id INT,
-    shortcode TEXT,
-    original_url TEXT,
-    status TEXT, -- 'pending', 'processed', 'failed'
-    created_at TIMESTAMP,
-    processed_at TIMESTAMP,
-    error_message TEXT,
-    PRIMARY KEY (bulk_upload_id, shortcode)
-) WITH compression = {'sstable_compression': 'LZ4Compressor'};
-
--- Create a table for namespace statistics
-CREATE TABLE IF NOT EXISTS namespace_stats (
-    namespace_id INT,
-    total_urls INT,
-    total_clicks INT,
-    active_urls INT,
-    expired_urls INT,
-    last_updated TIMESTAMP,
-    PRIMARY KEY (namespace_id)
-) WITH compression = {'sstable_compression': 'LZ4Compressor'};
